@@ -64,6 +64,8 @@ builder.Services.AddScoped<ApplicationService>();
 builder.Services.AddSingleton<CRMS.Web.Intranet.Services.DocumentLinks>();
 // Here, not in AddInfrastructure: the API host loads that too, and two reminder loops would race.
 builder.Services.AddHostedService<CRMS.Infrastructure.BackgroundServices.RhshfOfferReminderBackgroundService>();
+// Credit checks staff run from the intranet. Only this host runs them; the API's partner worker never does.
+builder.Services.AddHostedService<CRMS.Infrastructure.BackgroundServices.StaffCreditCheckWorker>();
 builder.Services.AddSingleton<CRMS.Web.Intranet.Services.StatementFileParserService>();
 
 // Auth service for Blazor auth state

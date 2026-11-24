@@ -82,30 +82,33 @@ public class CustomerCheckService : ICustomerCheckService
                 new BillingScope(BillingFlow.PartnerApi, log.Id, PartnerReference(log.ConsumerName, log.RequestId), "Customer")), ct);
     }
 
-    public static string PartnerReference(string consumerName, string requestId) => $"{consumerName} · {requestId}";
+    public static string PartnerReference(string consumerName, string requestId) => CustomerCheckRequester.PartnerReference(consumerName, requestId);
 
-    public async Task<CustomerCheckOutcome> CheckAsync(ApiConsumer consumer, CustomerCheckQuery query, CancellationToken ct = default)
+    public Task<CustomerCheckOutcome> CheckAsync(ApiConsumer consumer, CustomerCheckQuery query, CancellationToken ct = default)
+        => CheckAsync(CustomerCheckRequester.ForConsumer(consumer, query.RequestId), query, ct);
+
+    public async Task<CustomerCheckOutcome> CheckAsync(CustomerCheckRequester requester, CustomerCheckQuery query, CancellationToken ct = default)
     {
-        using var _ = BillingContext.Begin(BillingFlow.PartnerApi, null, PartnerReference(consumer.Name, query.RequestId), "Customer");
+        using var _ = BillingContext.Begin(requester.BillingFlow, null, requester.BillingReference, "Customer", requester.TriggeredBy);
         var now = DateTime.UtcNow;
         var state = new RunState();
 
-        var identity = Gate(consumer, query, CustomerCheckSections.Identity) is { } gi
+        var identity = Gate(requester, query, CustomerCheckSections.Identity) is { } gi
             ? IdentitySection.Empty(gi)
             : await IdentityAsync(query, state, ct);
 
-        var bureau = Gate(consumer, query, CustomerCheckSections.CreditBureau) is { } gb
+        var bureau = Gate(requester, query, CustomerCheckSections.CreditBureau) is { } gb
             ? CreditBureauSection.Empty(gb)
-            : await BureauAsync(consumer, query, state, now, ct);
+            : await BureauAsync(requester, query, state, now, ct);
 
-        var fraud = Gate(consumer, query, CustomerCheckSections.FraudCheck) is { } gf
+        var fraud = Gate(requester, query, CustomerCheckSections.FraudCheck) is { } gf
             ? FraudCheckSection.Empty(gf)
             : await FraudAsync(query, state, ct);
 
         BankAccountsSection accounts;
         BankLoansSection loans;
-        var ga = Gate(consumer, query, CustomerCheckSections.BankAccounts);
-        var gl = Gate(consumer, query, CustomerCheckSections.BankLoans);
+        var ga = Gate(requester, query, CustomerCheckSections.BankAccounts);
+        var gl = Gate(requester, query, CustomerCheckSections.BankLoans);
         if (ga is not null && gl is not null)
         {
             accounts = BankAccountsSection.Empty(ga);
@@ -118,12 +121,12 @@ public class CustomerCheckService : ICustomerCheckService
             if (gl is not null) loans = BankLoansSection.Empty(gl);
         }
 
-        var crms = Gate(consumer, query, CustomerCheckSections.CrmsFacilities) is { } gc
+        var crms = Gate(requester, query, CustomerCheckSections.CrmsFacilities) is { } gc
             ? CrmsFacilitiesSection.Empty(gc)
             : await CrmsAsync(query, ct);
 
         // Last, because it scores what the others found.
-        var advisory = Gate(consumer, query, CustomerCheckSections.AiAdvisory) is { } gv
+        var advisory = Gate(requester, query, CustomerCheckSections.AiAdvisory) is { } gv
             ? AiAdvisorySection.Empty(gv)
             : await AdvisoryAsync(query, identity, bureau, fraud, accounts, loans, crms, state, now, ct);
 
@@ -137,7 +140,7 @@ public class CustomerCheckService : ICustomerCheckService
         if (Ran(advisory.Status)) sectionsRun.Add(CustomerCheckSections.AiAdvisory);
 
         var response = new CustomerCheckResponse(
-            query.RequestId, now, consumer.Name,
+            query.RequestId, now, requester.Name,
             new CheckSubject(CustomerCheckRules.Last4(query.Bvn), query.Nubans.Select(CustomerCheckRules.MaskLast4).ToList()),
             sectionsRun, identity, bureau, fraud, accounts, loans, crms, advisory,
             new Dictionary<string, string>(), []);
@@ -153,9 +156,9 @@ public class CustomerCheckService : ICustomerCheckService
     // ── Gates ────────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>Null when the section should run; otherwise the status that explains why not.</summary>
-    private static string? Gate(ApiConsumer consumer, CustomerCheckQuery query, string section)
+    private static string? Gate(CustomerCheckRequester requester, CustomerCheckQuery query, string section)
         => !query.Wants(section) ? SectionStatuses.NotRequested
-            : !consumer.Allows(section) ? SectionStatuses.NotAllowed
+            : !requester.Allows(section) ? SectionStatuses.NotAllowed
             : null;
 
     private static bool Ran(string status) => status is not (SectionStatuses.NotRequested or SectionStatuses.NotAllowed);
@@ -198,7 +201,7 @@ public class CustomerCheckService : ICustomerCheckService
 
     // ── Credit bureau ────────────────────────────────────────────────────────────────────────────
 
-    private async Task<CreditBureauSection> BureauAsync(ApiConsumer consumer, CustomerCheckQuery query, RunState state, DateTime now, CancellationToken ct)
+    private async Task<CreditBureauSection> BureauAsync(CustomerCheckRequester requester, CustomerCheckQuery query, RunState state, DateTime now, CancellationToken ct)
     {
         var order = _settings.BureauOrder.Select(Bureaus.Canonical).Where(b => b is not null).Distinct().ToList();
         if (order.Count == 0)
@@ -209,10 +212,10 @@ public class CustomerCheckService : ICustomerCheckService
 
         foreach (var bureau in order)
         {
-            // Reuse first: a stored report inside the consumer's window costs nothing.
-            if (consumer.ReuseBureauReports)
+            // Reuse first: a stored report inside the requester's window costs nothing.
+            if (requester.ReuseBureauReports)
             {
-                var stored = await TryFindStoredAsync(bvnHash, bureau!, now.AddDays(-consumer.BureauReuseMaxAgeDays), ct);
+                var stored = await TryFindStoredAsync(bvnHash, bureau!, now.AddDays(-requester.ReuseMaxAgeDays), ct);
                 if (stored is not null && TryDeserialize<SmartComplyIndividualCreditReport>(stored.ReportJson) is { } storedReport)
                 {
                     var storedScore = stored.ScoreJson is null ? null : TryDeserialize<SmartComplyCreditScore>(stored.ScoreJson);
@@ -253,7 +256,8 @@ public class CustomerCheckService : ICustomerCheckService
                 state.Report = result.Value;
                 state.BureauUsed = bureau;
                 var score = query.IncludeScore ? await ScoreAsync(bureau!, query.Bvn, state, ct) : null;
-                await TryStoreAsync(bvnHash, bureau!, result.Value, score, consumer.Id, ct);
+                if (requester.StoreBureauReports)
+                    await TryStoreAsync(bvnHash, bureau!, result.Value, score, requester.FetchedById, ct);
                 return CustomerCheckRules.MapBureau(result.Value, bureau!, false, now, score, skipped);
             }
 

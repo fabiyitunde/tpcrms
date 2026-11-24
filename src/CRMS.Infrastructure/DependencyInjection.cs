@@ -412,6 +412,25 @@ public static class DependencyInjection
         services.AddSingleton<Application.CustomerCheck.ICustomerCheckJobSignal>(sp => sp.GetRequiredService<CustomerCheckJobSignal>());
         services.AddScoped<CustomerCheckJobRunner>();
         services.AddScoped<CustomerCheckCallbackDispatcher>();
+
+        // Company credit check, and the credit checks staff run from the intranet. Staff checks run
+        // on the intranet host (StaffCreditCheckWorker is registered there), never on the partner worker.
+        services.AddSingleton(sp => sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Application.CustomerCheck.CustomerCheckSettings>>().Value);
+        services.AddScoped<Application.CustomerCheck.ICompanyCheckService, CompanyCheckService>();
+        services.AddScoped<IStaffCreditCheckRepository, StaffCreditCheckRepository>();
+        services.AddScoped<IFeatureAccessRuleRepository, FeatureAccessRuleRepository>();
+        services.AddScoped<Application.Access.IFeatureAccessService, Application.Access.FeatureAccessService>();
+        services.AddScoped<Application.Access.GetFeatureAccessRulesHandler>();
+        services.AddScoped<Application.Access.UpdateFeatureAccessRuleHandler>();
+        services.AddScoped<Application.CreditCheck.QueueStaffCreditCheckHandler>();
+        services.AddScoped<Application.CreditCheck.GetStaffCreditCheckHandler>();
+        services.AddScoped<Application.CreditCheck.GetStaffCreditCheckStatusHandler>();
+        services.AddScoped<Application.CreditCheck.ListStaffCreditChecksHandler>();
+        services.AddScoped<Application.CreditCheck.GetStaffCreditCheckPdfHandler>();
+        services.AddScoped<Application.CreditCheck.ICreditCheckPdfGenerator, Documents.CreditCheckPdfGenerator>();
+        services.AddSingleton<StaffCreditCheckSignal>();
+        services.AddSingleton<Application.CreditCheck.IStaffCreditCheckSignal>(sp => sp.GetRequiredService<StaffCreditCheckSignal>());
+        services.AddScoped<StaffCreditCheckRunner>();
         services.AddHttpClient<Application.CustomerCheck.ICustomerCheckCallbackSender, ExternalServices.CustomerCheck.CustomerCheckCallbackSender>((sp, client) =>
         {
             var settings = sp.GetRequiredService<Microsoft.Extensions.Options.IOptions<Application.CustomerCheck.CustomerCheckSettings>>().Value;

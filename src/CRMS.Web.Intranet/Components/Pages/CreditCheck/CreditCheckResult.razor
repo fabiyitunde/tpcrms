@@ -1,0 +1,425 @@
+@using CRMS.Application.CreditCheck
+@using CRMS.Application.CustomerCheck
+
+@* One finished staff credit check, individual or company: the headline first, then a card per
+   section in the order the check ran them. Sections that did not answer say why instead of
+   showing empty tables. *@
+
+@{
+    var s = View.Summary;
+    var advisory = View.Individual?.AiAdvisory ?? View.Company?.AiAdvisory;
+    var warnings = View.Individual?.Warnings ?? View.Company?.Warnings ?? [];
+    var isCompany = View.Company is not null;
+}
+
+<div class="cc-hero card">
+    <div class="cc-hero-main">
+        <div class="cc-hero-icon @(isCompany ? "cc-hero-icon-co" : "")">
+            <span class="material-symbols-outlined">@(isCompany ? "domain" : "person")</span>
+        </div>
+        <div style="min-width: 0;">
+            <div class="cc-kicker">@(isCompany ? "Company credit check" : "Individual credit check")</div>
+            <h2 class="cc-hero-name">@(s.SubjectName ?? s.SubjectLabel)</h2>
+            <div class="cc-hero-meta">@string.Join("  ·  ", new[] { s.SubjectLabel, $"Run by {s.RequestedByName}", Local(s.CreatedAt).ToString("dd MMM yyyy, HH:mm"), string.IsNullOrEmpty(s.CaseReference) ? null : $"Case {s.CaseReference}" }.Where(x => x is not null))</div>
+            <div class="cc-hero-reason"><span class="material-symbols-outlined">format_quote</span>@s.Purpose</div>
+        </div>
+    </div>
+    <div class="cc-hero-side">
+        @if (advisory is { Status: SectionStatuses.Ok })
+        {
+            <div class="cc-ring" style="--pct: @((int)Math.Round(advisory.OverallScore ?? 0)); --ring: @RingColour(advisory.OverallScore)">
+                <div class="cc-ring-inner">
+                    <div class="cc-ring-value">@($"{advisory.OverallScore:N0}")</div>
+                    <div class="cc-ring-of">of 100</div>
+                </div>
+            </div>
+            <div>
+                <div class="cc-rec cc-rec-@advisory.Recommendation">@Spaced(advisory.Recommendation)</div>
+                <div class="cc-muted" style="margin-top: 4px;">@Spaced(advisory.OverallRating) risk</div>
+            </div>
+        }
+        else
+        {
+            <div class="cc-muted" style="max-width: 180px;">No advisory score. @(advisory?.Reason)</div>
+        }
+        <button class="btn btn-primary" @onclick="OnDownload" disabled="@Downloading">
+            <span class="material-symbols-outlined @(Downloading ? "spinning" : "")" style="font-size: 18px;">@(Downloading ? "progress_activity" : "picture_as_pdf")</span>
+            Download PDF
+        </button>
+    </div>
+</div>
+
+@if (warnings.Count > 0)
+{
+    <div class="cc-warnings">
+        <div class="cc-warnings-title"><span class="material-symbols-outlined">flag</span> Worth a second look</div>
+        <ul>
+            @foreach (var w in warnings) { <li>@w</li> }
+        </ul>
+    </div>
+}
+else
+{
+    <div class="cc-allclear"><span class="material-symbols-outlined">verified</span> Nothing in this check was flagged for a second look.</div>
+}
+
+<div class="cc-grid">
+    @if (View.Individual is { } ind)
+    {
+        <CheckCard Title="Identity (BVN)" Icon="badge" Status="@ind.Identity.Status" Reason="@ind.Identity.Reason">
+            <div class="cc-facts">
+                @Fact("Name", ind.Identity.FullName)
+                @Fact("Date of birth", Date(ind.Identity.DateOfBirth))
+                @Fact("Gender", ind.Identity.Gender)
+                @Fact("Phone", ind.Identity.PhoneNumber)
+                @Fact("State of residence", ind.Identity.StateOfResidence)
+                @Fact("Enrolment bank", ind.Identity.EnrollmentBank)
+                @Fact("BVN registered", Date(ind.Identity.RegistrationDate))
+                @Fact("Watch-listed", ind.Identity.WatchListed is null ? null : ind.Identity.WatchListed.Value ? "Yes" : "No")
+            </div>
+        </CheckCard>
+    }
+    @if (View.Company is { } co)
+    {
+        var g = co.CompanyRegistration;
+        <CheckCard Title="Company registration (CAC)" Icon="domain" Status="@g.Status" Reason="@g.Reason">
+            <div class="cc-facts">
+                @Fact("Registered name", g.CompanyName)
+                @Fact("Registration status", g.RegistrationStatus)
+                @Fact("Registered on", Date(g.RegistrationDate))
+                @Fact("Type", g.CompanyType)
+                @Fact("Nature of business", g.NatureOfBusiness)
+                @Fact("Share capital", Money(g.ShareCapital))
+                @Fact("Address", g.Address)
+                @Fact("State", g.State)
+                @Fact("Email", g.Email)
+            </div>
+        </CheckCard>
+    }
+
+    @{ var fraud = View.Individual?.FraudCheck ?? View.Company?.FraudCheck; }
+    @if (fraud is not null)
+    {
+        <CheckCard Title="Fraud check" Icon="shield_person" Status="@fraud.Status" Reason="@fraud.Reason">
+            <div class="cc-fraud">
+                <div class="cc-fraud-score cc-band-@fraud.RiskBand">@fraud.RiskScore</div>
+                <div style="flex: 1;">
+                    <div class="cc-fraud-bar"><div class="cc-fraud-marker" style="left: @(Math.Clamp(fraud.RiskScore ?? 0, 0, 100))%"></div></div>
+                    <div class="cc-fraud-scale"><span>Low</span><span>Medium</span><span>High</span></div>
+                </div>
+            </div>
+            <div class="cc-facts" style="margin-top: var(--space-3);">
+                @Fact("Risk band", Spaced(fraud.RiskBand))
+                @Fact("Recommendation", fraud.Recommendation)
+                @Fact("AML screen", fraud.AmlChecked ? "Included" : "Not included")
+                @Fact("Financial analysis", fraud.FinancialAnalysis is null ? null : fraud.FinancialAnalysis.Assessed ? "Assessed" : "Not assessed")
+            </div>
+            @if (fraud.FinancialAnalysis?.Reason is { } why) { <div class="cc-note">@why</div> }
+        </CheckCard>
+    }
+</div>
+
+@if (View.Company is { CompanyRegistration.Affiliates.Count: > 0 } withAffiliates)
+{
+    <CheckCard Title="@($"Directors, shareholders and officers ({withAffiliates.CompanyRegistration.Affiliates.Count})")" Icon="groups" Status="@SectionStatuses.Ok">
+        <div class="table-responsive">
+            <table class="table cc-table">
+                <thead><tr><th>Name</th><th>Role</th><th>Status</th><th>Appointed</th><th class="text-end">Shares</th></tr></thead>
+                <tbody>
+                    @foreach (var a in withAffiliates.CompanyRegistration.Affiliates)
+                    {
+                        <tr>
+                            <td>
+                                <strong>@a.Name</strong>
+                                @if (a.IsChairman) { <span class="cc-tag">Chairman</span> }
+                                @if (a.IsCorporate) { <span class="cc-tag">Company</span> }
+                                @if (!string.IsNullOrEmpty(a.Occupation)) { <div class="cc-muted">@a.Occupation</div> }
+                            </td>
+                            <td>@(a.Role ?? "-")</td>
+                            <td>@(a.Status ?? "-")</td>
+                            <td>@(Date(a.AppointedOn) ?? "-")</td>
+                            <td class="text-end">@(a.Shares is { } sh ? sh.ToString("N0") : "-")<div class="cc-muted">@a.TypeOfShares</div></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    </CheckCard>
+}
+
+@{ var bureau = View.Individual?.CreditBureau ?? View.Company?.CreditBureau; }
+@if (bureau is not null)
+{
+    <CheckCard Title="Credit bureau" Icon="credit_score" Status="@bureau.Status" Reason="@bureau.Reason" Badge="@BureauName(bureau.Bureau)">
+        @if (bureau.Summary is { } bs)
+        {
+            <div class="cc-tiles">
+                @if (bureau.Score is { } score) { @Tile("Credit score", score.Value.ToString(), score.Band) }
+                @Tile("Loans on file", bs.TotalLoans.ToString(), $"{bs.ActiveLoans} active · {bs.ClosedLoans} closed")
+                @Tile("Performing", bs.PerformingLoans.ToString(), null)
+                @Tile("Delinquent", bs.DelinquentLoans.ToString(), null, bs.DelinquentLoans > 0)
+                @Tile("Outstanding", Money(bs.TotalOutstanding)!, null)
+                @Tile("Overdue", Money(bs.TotalOverdue)!, null, bs.TotalOverdue > 0)
+                @Tile("Worst arrears", $"{bs.MaxDaysOverdue} days", null, bs.MaxDaysOverdue >= 30)
+            </div>
+        }
+        @if (bureau.Loans.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table cc-table">
+                    <thead><tr><th>Lender</th><th>Type</th><th class="text-end">Amount</th><th class="text-end">Outstanding</th><th class="text-end">Overdue</th><th>Status</th><th>Opened</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in bureau.Loans)
+                        {
+                            <tr>
+                                <td>@(l.Lender ?? "-")@if (l.AccountNumberLast4 is not null) { <div class="cc-muted">****@l.AccountNumberLast4</div> }</td>
+                                <td>@(l.Type ?? "-")</td>
+                                <td class="text-end">@Money(l.Amount)</td>
+                                <td class="text-end">@Money(l.Outstanding)</td>
+                                <td class="text-end @(l.Overdue > 0 ? "cc-bad" : "")">@Money(l.Overdue)</td>
+                                <td><span class="cc-loan cc-loan-@l.Status">@Spaced(l.Status)</span></td>
+                                <td>@(Date(l.DisbursedDate) ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+        @if (bureau.RecentEnquiries.Count > 0)
+        {
+            <div class="cc-subtitle">Recent enquiries</div>
+            <div class="cc-chips">
+                @foreach (var e in bureau.RecentEnquiries) { <span class="cc-chip">@e.Institution · @Date(e.Date)</span> }
+            </div>
+        }
+    </CheckCard>
+}
+
+@{ var accounts = View.Individual?.BankAccounts ?? View.Company?.BankAccounts; }
+@if (accounts is not null)
+{
+    <CheckCard Title="Accounts with the bank" Icon="account_balance" Status="@accounts.Status" Reason="@accounts.Reason">
+        <div class="cc-facts">
+            @Fact("Customer record", accounts.ClientId)
+            @Fact("Record status", accounts.ClientStatus)
+            @Fact("KYC level", accounts.KycLevel)
+            @Fact("Customer since", Date(accounts.CustomerSince))
+        </div>
+        @if (accounts.Accounts.Count > 0)
+        {
+            <div class="table-responsive">
+                <table class="table cc-table">
+                    <thead><tr><th>Account</th><th>Product</th><th>Status</th><th class="text-end">Balance</th><th class="text-end">In / out in window</th><th>Last transaction</th></tr></thead>
+                    <tbody>
+                        @foreach (var a in accounts.Accounts)
+                        {
+                            <tr>
+                                <td>****@a.AccountNumberLast4<div class="cc-muted">@Spaced(a.AccountType)</div></td>
+                                <td>@(a.ProductName ?? "-")</td>
+                                <td><span class="cc-acct cc-acct-@a.Status">@Spaced(a.Status)</span></td>
+                                <td class="text-end">@Money(a.Balance)</td>
+                                <td class="text-end">
+                                    @if (a.Activity is { } act)
+                                    {
+                                        <span class="cc-good">+@Money(act.CreditsInWindow)</span><br /><span class="cc-bad">-@Money(act.DebitsInWindow)</span>
+                                        <div class="cc-muted">@act.TransactionsInWindow transactions, @act.WindowMonths months</div>
+                                    }
+                                    else { <span class="cc-muted">Not read</span> }
+                                </td>
+                                <td>@(Date(a.LastTransaction) ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </CheckCard>
+}
+
+@{ var loans = View.Individual?.BankLoans ?? View.Company?.BankLoans; }
+@if (loans is not null)
+{
+    <CheckCard Title="Loans with the bank" Icon="request_quote" Status="@loans.Status" Reason="@loans.Reason">
+        @if (loans.Loans.Count == 0)
+        {
+            <div class="cc-empty">No loans booked in core banking.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table cc-table">
+                    <thead><tr><th>Loan</th><th>Product</th><th class="text-end">Principal</th><th class="text-end">Outstanding</th><th class="text-end">Overdue</th><th class="text-end">Days past due</th><th>Status</th><th>Next due</th></tr></thead>
+                    <tbody>
+                        @foreach (var l in loans.Loans)
+                        {
+                            <tr>
+                                <td>****@l.LoanAccountLast4</td>
+                                <td>@(l.ProductName ?? "-")</td>
+                                <td class="text-end">@Money(l.Principal)</td>
+                                <td class="text-end">@Money(l.Outstanding)</td>
+                                <td class="text-end @(l.OverdueAmount > 0 ? "cc-bad" : "")">@Money(l.OverdueAmount)</td>
+                                <td class="text-end @(l.DaysPastDue > 0 ? "cc-bad" : "")">@(l.DaysPastDue?.ToString() ?? "-")</td>
+                                <td><span class="cc-loan cc-loan-@l.Status">@Spaced(l.Status)</span></td>
+                                <td>@(Date(l.NextDueDate) ?? "-")@if (l.NextDueAmount is { } nd) { <div class="cc-muted">@Money(nd)</div> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </CheckCard>
+}
+
+@{ var crms = View.Individual?.CrmsFacilities ?? View.Company?.CrmsFacilities; }
+@if (crms is not null)
+{
+    <CheckCard Title="Cases in the CRMS" Icon="folder_shared" Status="@crms.Status" Reason="@crms.Reason">
+        @if (crms.Relationships.Count == 0)
+        {
+            <div class="cc-empty">No CRMS case found.</div>
+        }
+        else
+        {
+            <div class="table-responsive">
+                <table class="table cc-table">
+                    <thead><tr><th>Case</th><th>Track</th><th>Role</th><th>Borrower</th><th>Status</th><th class="text-end">Amount</th></tr></thead>
+                    <tbody>
+                        @foreach (var f in crms.Relationships)
+                        {
+                            <tr>
+                                <td><strong>@f.CaseReference</strong></td>
+                                <td>@f.Track</td>
+                                <td>@Spaced(f.Role)</td>
+                                <td>@f.Obligor</td>
+                                <td>@Spaced(f.Status)</td>
+                                <td class="text-end">@Money(f.AmountApproved)@if (f.GuaranteeAmount is { } ga) { <div class="cc-muted">Guarantees @Money(ga)</div> }</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </CheckCard>
+}
+
+@if (advisory is not null)
+{
+    <CheckCard Title="AI advisory" Icon="psychology" Status="@advisory.Status" Reason="@advisory.Reason" Badge="@(advisory.NarrativeSource == "LLM" ? "Narrative by AI" : null)">
+        <div class="cc-cats">
+            @foreach (var c in advisory.Categories)
+            {
+                <div class="cc-cat">
+                    <div class="cc-cat-head">
+                        <span>@CategoryLabel(c.Category, isCompany)</span>
+                        <span class="cc-muted">weight @c.Weight.ToString("P0")</span>
+                        <strong>@(c.Assessed ? $"{c.Score:N0}" : "Not assessed")</strong>
+                    </div>
+                    <div class="cc-cat-bar"><div style="width: @(c.Assessed ? (int)Math.Round(c.Score ?? 0) : 0)%; background: @RingColour(c.Score)"></div></div>
+                    <div class="cc-cat-why">@Why(c)</div>
+                    @foreach (var pos in c.Positives) { <div class="cc-pos"><span class="material-symbols-outlined">add_circle</span>@pos</div> }
+                    @foreach (var neg in c.Concerns) { <div class="cc-neg"><span class="material-symbols-outlined">remove_circle</span>@neg</div> }
+                </div>
+            }
+        </div>
+        @if (advisory.RedFlags.Count > 0)
+        {
+            <div class="cc-subtitle">Red flags</div>
+            <ul class="cc-list cc-list-bad">@foreach (var f in advisory.RedFlags) { <li>@f</li> }</ul>
+        }
+        @if (advisory.Conditions.Count > 0)
+        {
+            <div class="cc-subtitle">Conditions</div>
+            <ul class="cc-list">@foreach (var c in advisory.Conditions) { <li>@c</li> }</ul>
+        }
+        @if (advisory.Narrative is { } n)
+        {
+            <div class="cc-narrative">
+                <p><strong>Summary.</strong> @n.Summary</p>
+                @if (!string.IsNullOrWhiteSpace(n.Strengths)) { <p><strong>Strengths.</strong> @n.Strengths</p> }
+                @if (!string.IsNullOrWhiteSpace(n.Weaknesses)) { <p><strong>Weaknesses.</strong> @n.Weaknesses</p> }
+                @if (!string.IsNullOrWhiteSpace(n.MitigatingFactors)) { <p><strong>Mitigating factors.</strong> @n.MitigatingFactors</p> }
+                @if (!string.IsNullOrWhiteSpace(n.KeyRisks)) { <p><strong>Key risks.</strong> @n.KeyRisks</p> }
+            </div>
+        }
+        @if (advisory.Proposal is { } p)
+        {
+            <div class="cc-note">
+                Measured against @Money(p.Amount) over @p.TenorMonths months@(p.Supplied ? "" : " (assumed: no amount or tenor was given)").
+                @if (p.RecommendedAmount is { } ra) { <text>The rules would lend @Money(ra) over @p.RecommendedTenorMonths months.</text> }
+            </div>
+        }
+        @if (advisory.Basis is not null) { <div class="cc-note">@advisory.Basis</div> }
+    </CheckCard>
+}
+
+@code {
+    [Parameter, EditorRequired] public StaffCreditCheckView View { get; set; } = null!;
+    [Parameter] public EventCallback OnDownload { get; set; }
+    [Parameter] public bool Downloading { get; set; }
+
+    private static readonly TimeSpan Wat = TimeSpan.FromHours(1);
+    private static DateTime Local(DateTime utc) => utc + Wat;
+    private static string? Date(DateOnly? d) => d?.ToString("dd MMM yyyy");
+    private static string? Money(decimal? v) => v is null ? null : $"₦{v:N2}";
+
+    /// <summary>The scoring engine prefixes an unassessed category's reason with its name
+    /// ("RepaymentCapacity|No statement was read."); only the reason is for people.</summary>
+    public static string Why(AdvisoryCategory c) => c.Assessed ? c.Rationale : c.Rationale[(c.Rationale.IndexOf('|') + 1)..];
+
+    public static string? BureauName(string? bureau) => bureau switch
+    {
+        "FIRST_CENTRAL" => "First Central",
+        "CREDIT_REGISTRY" => "Credit Registry",
+        _ => bureau,
+    };
+
+    private static string RingColour(decimal? score) => score switch
+    {
+        >= 70 => "#2e7d32",
+        >= 50 => "#f59e0b",
+        null => "#a0aec0",
+        _ => "#ef4444",
+    };
+
+    private static string CategoryLabel(string category, bool company) => category switch
+    {
+        "CreditHistory" => "Credit history",
+        "RepaymentCapacity" => "Repayment capacity",
+        "CashflowStability" => "Cashflow stability",
+        "IdentityAndFraud" => company ? "Registration and fraud" : "Identity and fraud",
+        _ => Spaced(category),
+    };
+
+    /// <summary>"ApproveWithConditions" → "Approve With Conditions"; "WRITTEN_OFF" → "Written off".</summary>
+    public static string Spaced(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "-";
+        if (value.Contains('_') || value.All(ch => !char.IsLetter(ch) || char.IsUpper(ch)))
+        {
+            var words = value.Replace('_', ' ').ToLowerInvariant();
+            return char.ToUpperInvariant(words[0]) + words[1..];
+        }
+        var sb = new System.Text.StringBuilder();
+        foreach (var ch in value)
+        {
+            if (char.IsUpper(ch) && sb.Length > 0) sb.Append(' ');
+            sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
+    private static RenderFragment Fact(string label, string? value) => __builder =>
+    {
+        if (string.IsNullOrWhiteSpace(value)) return;
+        <div class="cc-fact"><span class="cc-fact-label">@label</span><span class="cc-fact-value">@value</span></div>
+    };
+
+    private static RenderFragment Tile(string label, string value, string? sub, bool bad = false) => __builder =>
+    {
+        <div class="cc-tile @(bad ? "cc-tile-bad" : "")">
+            <div class="cc-tile-label">@label</div>
+            <div class="cc-tile-value">@value</div>
+            @if (sub is not null) { <div class="cc-muted">@sub</div> }
+        </div>
+    };
+}

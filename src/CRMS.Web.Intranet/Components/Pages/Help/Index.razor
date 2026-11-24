@@ -130,6 +130,9 @@
                             <span class="nav-dot"></span>Audit Trail
                         </a>
                     }
+                    <a class="nav-item @IsActive("credit-check")" href="/help/credit-check">
+                        <span class="nav-dot"></span>Credit Check
+                    </a>
                 </div>
                 }
 
@@ -170,6 +173,9 @@
                     </a>
                     <a class="nav-item @IsActive("admin-diagnostics")" href="/help/admin-diagnostics">
                         <span class="nav-dot"></span>Diagnostics
+                    </a>
+                    <a class="nav-item @IsActive("admin-feature-access")" href="/help/admin-feature-access">
+                        <span class="nav-dot"></span>Feature Access
                     </a>
                     <a class="nav-item @IsActive("namp-admin")" href="/help/namp-admin">
                         <span class="nav-dot"></span>NAMP Configuration
@@ -578,6 +584,8 @@
                 case "admin-partner-api":
                 case "admin-outbound-email":
                 case "admin-diagnostics":
+                case "admin-feature-access":
+                case "credit-check":
                     <HelpIntegrations Section="@CurrentSection" User="User" />
                     break;
                 default:
@@ -755,7 +763,7 @@
         "billing-access"         => IsBillingManager,
 
         // Newer administration pages
-        "admin-partner-api" or "admin-outbound-email" or "admin-diagnostics" => IsAdmin,
+        "admin-partner-api" or "admin-outbound-email" or "admin-diagnostics" or "admin-feature-access" => IsAdmin,
 
         // Everything else is available to all authenticated users
         _ => true
@@ -824,6 +832,8 @@
         ("admin-partner-api", "Partner API & API Consumers"),
         ("admin-outbound-email", "Outbound Email"),
         ("admin-diagnostics", "Diagnostics"),
+        ("admin-feature-access", "Feature Access"),
+        ("credit-check", "Credit Check"),
     ];
 
     // Search shows only the sections the user may open.

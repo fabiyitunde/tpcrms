@@ -1,0 +1,570 @@
+@page "/credit-check"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@implements IDisposable
+@inject ApplicationService AppService
+@inject AuthService AuthService
+@inject NavigationManager Navigation
+@inject IJSRuntime JS
+@using CRMS.Application.CreditCheck
+@using CRMS.Application.CustomerCheck
+@using CRMS.Domain.Aggregates.Access
+@using CRMS.Domain.Aggregates.CreditCheck
+
+<PageTitle>Credit Check - CRMS</PageTitle>
+
+@if (!accessKnown)
+{
+    <div style="display: flex; justify-content: center; padding: var(--space-12);"><span class="material-symbols-outlined spinning" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else if (!canRun && !canViewAll)
+{
+    <div class="card" style="max-width: 640px; margin: var(--space-8) auto;">
+        <div class="card-body" style="text-align: center; padding: var(--space-8);">
+            <span class="material-symbols-outlined" style="font-size: 44px; color: var(--gray-400);">lock</span>
+            <h3 style="margin-top: var(--space-3);">Credit checks are not open to your role</h3>
+            <p class="cc-muted" style="margin-top: var(--space-2);">An administrator chooses which roles may run credit checks, in Admin &gt; Feature Access.</p>
+        </div>
+    </div>
+}
+else
+{
+    <div class="page-header">
+        <div>
+            <h1 class="page-title">Credit Check</h1>
+            <p class="page-subtitle">What the bureaus, the registry, core banking and the CRMS know about a person or a company</p>
+        </div>
+    </div>
+
+    <div class="tabs">
+        @if (canRun)
+        {
+            <div class="tab @(tab == Tab.New ? "active" : "")" @onclick="() => SwitchTo(Tab.New)">New check</div>
+        }
+        <div class="tab @(tab == Tab.History ? "active" : "")" @onclick="() => SwitchTo(Tab.History)">History</div>
+        @if (view is not null)
+        {
+            <div class="tab @(tab == Tab.Result ? "active" : "")" @onclick="() => SwitchTo(Tab.Result)">Result</div>
+        }
+    </div>
+
+    @if (!string.IsNullOrEmpty(error))
+    {
+        <div class="alert alert-danger mb-4">@error</div>
+    }
+
+    @if (tab == Tab.New && canRun)
+    {
+        @if (running is not null)
+        {
+            <div class="card cc-progress">
+                <div class="cc-progress-head">
+                    <span class="material-symbols-outlined spinning" style="font-size: 28px; color: var(--primary-500);">progress_activity</span>
+                    <div>
+                        <h3>Checking @running.SubjectLabel</h3>
+                        <div class="cc-muted">@(running.Status == StaffCreditCheck.Queued ? "Waiting to start" : "Running") · @ElapsedText</div>
+                    </div>
+                </div>
+                <div class="cc-steps">
+                    @foreach (var step in runningSections)
+                    {
+                        <div class="cc-step"><span class="material-symbols-outlined">pending</span>@SectionLabel(step)</div>
+                    }
+                </div>
+                <p class="cc-muted" style="margin: var(--space-4) 0 0;">A check usually takes one to two minutes, because each provider is asked in turn. You can leave this page: the result will be in History.</p>
+            </div>
+        }
+        else
+        {
+            <div class="card cc-form">
+                <div class="cc-switch">
+                    <button class="cc-switch-btn @(subjectType == StaffCreditCheck.Individual ? "active" : "")" @onclick="() => SetType(StaffCreditCheck.Individual)">
+                        <span class="material-symbols-outlined">person</span>
+                        <span><strong>Individual</strong><small>By BVN</small></span>
+                    </button>
+                    <button class="cc-switch-btn @(subjectType == StaffCreditCheck.Company ? "active" : "")" @onclick="() => SetType(StaffCreditCheck.Company)">
+                        <span class="material-symbols-outlined">domain</span>
+                        <span><strong>Company</strong><small>By RC, BN or IT number</small></span>
+                    </button>
+                </div>
+
+                <div class="cc-form-grid">
+                    @if (subjectType == StaffCreditCheck.Individual)
+                    {
+                        <div class="form-group">
+                            <label class="form-label">BVN <span class="cc-req">*</span></label>
+                            <input class="form-control cc-mono" maxlength="11" inputmode="numeric" placeholder="11 digits" @bind="bvn" @bind:event="oninput" autocomplete="off" />
+                        </div>
+                    }
+                    else
+                    {
+                        <div class="form-group">
+                            <label class="form-label">Registration number <span class="cc-req">*</span></label>
+                            <input class="form-control cc-mono" maxlength="20" placeholder="e.g. RC123456" @bind="rcNumber" autocomplete="off" />
+                            <div class="form-hint">Keep the prefix: RC for a company, BN for a business name, IT for incorporated trustees.</div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Registered company name <span class="cc-req">*</span></label>
+                            <input class="form-control" maxlength="200" placeholder="As registered with the CAC" @bind="companyName" />
+                        </div>
+                    }
+                    <div class="form-group cc-span">
+                        <label class="form-label">BOA account numbers <span class="cc-muted">(optional)</span></label>
+                        <input class="form-control cc-mono" placeholder="Up to 5, separated by commas" @bind="nubans" autocomplete="off" />
+                        <div class="form-hint">
+                            @if (subjectType == StaffCreditCheck.Company)
+                            {
+                                <text>Needed for the bank sections: core banking finds a company only by one of its account numbers.</text>
+                            }
+                            else
+                            {
+                                <text>Accounts are found by BVN; numbers given here are read first for activity.</text>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <div class="cc-subtitle">Sections to run</div>
+                <div class="cc-sections">
+                    @foreach (var section in AvailableSections)
+                    {
+                        var on = selected.Contains(section);
+                        <button class="cc-section-chip @(on ? "on" : "")" @onclick="() => Toggle(section)">
+                            <span class="material-symbols-outlined">@(on ? "check_circle" : "radio_button_unchecked")</span>
+                            @SectionLabel(section)
+                            @if (Billed(section)) { <span class="cc-billed" title="Calls a paid third-party service">billed</span> }
+                        </button>
+                    }
+                </div>
+
+                <details class="cc-more" open="@showOptions">
+                    <summary @onclick:preventDefault @onclick="() => showOptions = !showOptions">Proposed loan and other options</summary>
+                    <div class="cc-form-grid" style="margin-top: var(--space-3);">
+                        <div class="form-group">
+                            <label class="form-label">Proposed amount (₦)</label>
+                            <input type="number" min="1" class="form-control" @bind="loanAmount" />
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label">Tenor (months)</label>
+                            <input type="number" min="1" max="120" class="form-control" @bind="tenorMonths" />
+                        </div>
+                        @if (subjectType == StaffCreditCheck.Company)
+                        {
+                            <div class="form-group">
+                                <label class="form-label">Annual revenue (₦)</label>
+                                <input type="number" min="0" class="form-control" @bind="annualRevenue" />
+                            </div>
+                            <div class="form-group">
+                                <label class="form-label">Loan purpose</label>
+                                <input class="form-control" maxlength="200" @bind="loanPurpose" />
+                            </div>
+                        }
+                        <label class="cc-check cc-span">
+                            <input type="checkbox" @bind="runAml" /> Add an AML screen to the fraud check
+                        </label>
+                    </div>
+                    <div class="form-hint">With an amount and tenor, the advisory measures repayment capacity against a real proposal instead of a stand-in.</div>
+                </details>
+
+                <div class="cc-form-grid" style="margin-top: var(--space-4);">
+                    <div class="form-group cc-span">
+                        <label class="form-label">Why are you running this check? <span class="cc-req">*</span></label>
+                        <textarea class="form-control" rows="2" maxlength="500" placeholder="e.g. Walk-in enquiry: farmer asking about an input loan" @bind="purpose" @bind:event="oninput"></textarea>
+                        <div class="form-hint">Kept with the check and in the audit trail.</div>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">Case reference <span class="cc-muted">(optional)</span></label>
+                        <input class="form-control" maxlength="100" placeholder="e.g. RHSHF-2026-000123" @bind="caseReference" />
+                    </div>
+                </div>
+
+                <div class="cc-form-foot">
+                    <span class="cc-muted">@selected.Count section@(selected.Count == 1 ? "" : "s") · @selected.Count(Billed) billed</span>
+                    <button class="btn btn-primary btn-lg" @onclick="RunAsync" disabled="@(!CanSubmit || submitting)">
+                        <span class="material-symbols-outlined" style="font-size: 20px;">@(submitting ? "progress_activity" : "search")</span>
+                        Run check
+                    </button>
+                </div>
+            </div>
+        }
+    }
+
+    @if (tab == Tab.Result && view is not null)
+    {
+        @if (view.Summary.Status == StaffCreditCheck.Failed)
+        {
+            <div class="alert alert-danger">This check did not finish: @view.ErrorMessage</div>
+        }
+        else if (view.Summary.Status != StaffCreditCheck.Completed)
+        {
+            <div class="alert alert-info">This check is still running.</div>
+        }
+        else
+        {
+            <CreditCheckResult View="view" OnDownload="DownloadAsync" Downloading="downloading" />
+        }
+    }
+
+    @if (tab == Tab.History)
+    {
+        <div class="card cc-filters">
+            @if (canViewAll)
+            {
+                <div class="cc-seg">
+                    <button class="@(!everyone ? "active" : "")" @onclick="() => SetScope(false)">Mine</button>
+                    <button class="@(everyone ? "active" : "")" @onclick="() => SetScope(true)">All staff</button>
+                </div>
+            }
+            <select class="form-control" @bind="historyType" @bind:after="ReloadHistory">
+                <option value="">Individuals and companies</option>
+                <option value="@StaffCreditCheck.Individual">Individuals</option>
+                <option value="@StaffCreditCheck.Company">Companies</option>
+            </select>
+            <select class="form-control" @bind="historyStatus" @bind:after="ReloadHistory">
+                <option value="">Any status</option>
+                <option value="@StaffCreditCheck.Completed">Completed</option>
+                <option value="@StaffCreditCheck.Processing">Running</option>
+                <option value="@StaffCreditCheck.Queued">Waiting</option>
+                <option value="@StaffCreditCheck.Failed">Failed</option>
+            </select>
+            <input type="date" class="form-control" @bind="historyFrom" @bind:after="ReloadHistory" />
+            <input type="date" class="form-control" @bind="historyTo" @bind:after="ReloadHistory" />
+            <button class="btn btn-ghost" @onclick="LoadHistoryAsync" title="Refresh"><span class="material-symbols-outlined" style="font-size: 18px;">refresh</span></button>
+        </div>
+
+        <div class="card">
+            @if (history is null)
+            {
+                <div style="display: flex; justify-content: center; padding: var(--space-8);"><span class="material-symbols-outlined spinning" style="font-size: 28px; color: var(--primary-500);">progress_activity</span></div>
+            }
+            else if (history.Items.Count == 0)
+            {
+                <div class="cc-empty" style="padding: var(--space-8); justify-content: center;">
+                    <span class="material-symbols-outlined">manage_search</span>
+                    No checks yet@(everyone ? "" : " that you ran").
+                </div>
+            }
+            else
+            {
+                <div class="table-responsive">
+                    <table class="table cc-table cc-history">
+                        <thead>
+                            <tr><th>When</th><th>Subject</th>@if (everyone) { <th>Run by</th> }<th>Reason</th><th>Advisory</th><th>Status</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var h in history.Items)
+                            {
+                                <tr @onclick="() => OpenAsync(h.Id)">
+                                    <td>@((h.CreatedAt + TimeSpan.FromHours(1)).ToString("dd MMM yyyy HH:mm"))</td>
+                                    <td>
+                                        <span class="material-symbols-outlined cc-type-icon">@(h.SubjectType == StaffCreditCheck.Company ? "domain" : "person")</span>
+                                        <strong>@(h.SubjectName ?? h.SubjectLabel)</strong>
+                                        @if (h.SubjectName is not null) { <div class="cc-muted">@h.SubjectLabel</div> }
+                                    </td>
+                                    @if (everyone) { <td>@h.RequestedByName</td> }
+                                    <td class="cc-reason-cell">@h.Purpose@if (h.CaseReference is not null) { <div class="cc-muted">@h.CaseReference</div> }</td>
+                                    <td>
+                                        @if (h.AdvisoryScore is { } score)
+                                        {
+                                            <span class="cc-score" style="background: @RingFor(score)">@score.ToString("N0")</span>
+                                            <span class="cc-muted">@CreditCheckResult.Spaced(h.AdvisoryRecommendation)</span>
+                                        }
+                                        else { <span class="cc-muted">-</span> }
+                                        @if (h.WarningCount > 0) { <span class="cc-flag" title="Warnings"><span class="material-symbols-outlined">flag</span>@h.WarningCount</span> }
+                                    </td>
+                                    <td><span class="cc-status cc-status-@h.Status">@StatusWord(h.Status)</span></td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                <div class="cc-pager">
+                    <span class="cc-muted">@history.Total check@(history.Total == 1 ? "" : "s")</span>
+                    <div>
+                        <button class="btn btn-ghost btn-sm" disabled="@(historyPage <= 1)" @onclick="() => GoTo(historyPage - 1)">Previous</button>
+                        <span class="cc-muted">Page @historyPage of @Math.Max(1, (int)Math.Ceiling(history.Total / (double)history.PageSize))</span>
+                        <button class="btn btn-ghost btn-sm" disabled="@(historyPage * history.PageSize >= history.Total)" @onclick="() => GoTo(historyPage + 1)">Next</button>
+                    </div>
+                </div>
+            }
+        </div>
+    }
+}
+
+<CreditCheckStyles />
+
+@code {
+    private enum Tab { New, History, Result }
+
+    private Tab tab = Tab.New;
+    private bool accessKnown, canRun, canViewAll;
+    private string? error;
+
+    // Form
+    private string subjectType = StaffCreditCheck.Individual;
+    private string bvn = "", rcNumber = "", companyName = "", nubans = "", purpose = "", caseReference = "", loanPurpose = "";
+    private decimal? loanAmount, annualRevenue;
+    private int? tenorMonths;
+    private bool runAml, showOptions, submitting;
+    private HashSet<string> selected = [.. CustomerCheckSections.All];
+
+    // Running check
+    private StaffCreditCheckSummary? running;
+    private List<string> runningSections = [];
+    private DateTime runningSince;
+    private CancellationTokenSource? polling;
+
+    // Result and history
+    private StaffCreditCheckView? view;
+    private bool downloading;
+    private StaffCreditCheckPage? history;
+    private bool everyone;
+    private string historyType = "", historyStatus = "";
+    private DateTime? historyFrom, historyTo;
+    private int historyPage = 1;
+
+    private IReadOnlyList<string> AvailableSections =>
+        subjectType == StaffCreditCheck.Company ? CompanyCheckSections.All : CustomerCheckSections.All;
+
+    private bool CanSubmit => purpose.Trim().Length >= 5 && selected.Count > 0 && (subjectType == StaffCreditCheck.Company
+        ? rcNumber.Trim().Length > 0 && companyName.Trim().Length > 0
+        : bvn.Count(char.IsDigit) == 11);
+
+    private string ElapsedText
+    {
+        get
+        {
+            var s = (int)(DateTime.UtcNow - runningSince).TotalSeconds;
+            return s < 60 ? $"{s} seconds" : $"{s / 60} min {s % 60:00} s";
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Read from the database on every visit, so a role an administrator has just ticked or
+        // unticked applies here without signing out.
+        canRun = await AppService.CanUseFeatureAsync(FeatureKeys.CreditCheckRun);
+        canViewAll = await AppService.CanUseFeatureAsync(FeatureKeys.CreditCheckViewAll);
+        accessKnown = true;
+        if (!canRun && !canViewAll) return;
+        if (!canRun) { tab = Tab.History; everyone = true; }
+
+        var query = Microsoft.AspNetCore.WebUtilities.QueryHelpers.ParseQuery(Navigation.ToAbsoluteUri(Navigation.Uri).Query);
+        if (query.TryGetValue("id", out var id) && Guid.TryParse(id, out var checkId))
+            await OpenAsync(checkId);
+        else if (tab == Tab.History)
+            await LoadHistoryAsync();
+    }
+
+    private async Task SwitchTo(Tab next)
+    {
+        tab = next;
+        error = null;
+        if (next == Tab.History && history is null)
+            await LoadHistoryAsync();
+    }
+
+    private void SetType(string type)
+    {
+        if (subjectType == type) return;
+        subjectType = type;
+        selected = [.. AvailableSections];
+    }
+
+    private void Toggle(string section)
+    {
+        if (!selected.Remove(section)) selected.Add(section);
+    }
+
+    private static bool Billed(string section) => section is CustomerCheckSections.Identity or CompanyCheckSections.CompanyRegistration
+        or CustomerCheckSections.CreditBureau or CustomerCheckSections.FraudCheck or CustomerCheckSections.AiAdvisory;
+
+    private static string SectionLabel(string section) => section switch
+    {
+        CustomerCheckSections.Identity => "Identity (BVN)",
+        CompanyCheckSections.CompanyRegistration => "CAC registration",
+        CustomerCheckSections.CreditBureau => "Credit bureau",
+        CustomerCheckSections.FraudCheck => "Fraud check",
+        CustomerCheckSections.BankAccounts => "BOA accounts",
+        CustomerCheckSections.BankLoans => "BOA loans",
+        CustomerCheckSections.CrmsFacilities => "CRMS cases",
+        CustomerCheckSections.AiAdvisory => "AI advisory",
+        _ => section,
+    };
+
+    private async Task RunAsync()
+    {
+        error = null;
+        submitting = true;
+        try
+        {
+            var accounts = nubans.Split([',', ';', ' ', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList();
+            var request = new StaffCreditCheckRequest(
+                subjectType,
+                subjectType == StaffCreditCheck.Individual ? bvn : null,
+                subjectType == StaffCreditCheck.Company ? rcNumber : null,
+                subjectType == StaffCreditCheck.Company ? companyName : null,
+                accounts,
+                AvailableSections.Where(selected.Contains).ToList(),
+                loanAmount, tenorMonths,
+                subjectType == StaffCreditCheck.Company ? annualRevenue : null,
+                subjectType == StaffCreditCheck.Company && !string.IsNullOrWhiteSpace(loanPurpose) ? loanPurpose : null,
+                runAml, purpose, string.IsNullOrWhiteSpace(caseReference) ? null : caseReference);
+
+            var queued = await AppService.QueueStaffCreditCheckAsync(request);
+            if (!queued.Success)
+            {
+                error = queued.Error;
+                return;
+            }
+            runningSections = request.Sections!;
+            runningSince = DateTime.UtcNow;
+            var status = await AppService.GetStaffCreditCheckStatusAsync(queued.Data);
+            running = status.Data;
+            history = null;
+            StartPolling(queued.Data);
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private void StartPolling(Guid id)
+    {
+        polling?.Cancel();
+        polling = new CancellationTokenSource();
+        var token = polling.Token;
+        _ = Task.Run(async () =>
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(3));
+            try
+            {
+                while (await timer.WaitForNextTickAsync(token))
+                {
+                    var status = await AppService.GetStaffCreditCheckStatusAsync(id);
+                    if (token.IsCancellationRequested) return;
+                    await InvokeAsync(async () =>
+                    {
+                        if (status.Success && status.Data is { } s)
+                        {
+                            running = s;
+                            if (s.Status is StaffCreditCheck.Completed or StaffCreditCheck.Failed)
+                            {
+                                polling?.Cancel();
+                                running = null;
+                                ResetForm();
+                                await OpenAsync(id);
+                                // Called from the timer, not from an event, so nothing re-renders by itself.
+                                StateHasChanged();
+                                return;
+                            }
+                        }
+                        StateHasChanged();
+                    });
+                }
+            }
+            catch (OperationCanceledException) { }
+        }, token);
+    }
+
+    private void ResetForm()
+    {
+        bvn = rcNumber = companyName = nubans = purpose = caseReference = loanPurpose = "";
+        loanAmount = annualRevenue = null;
+        tenorMonths = null;
+        runAml = false;
+        selected = [.. AvailableSections];
+    }
+
+    private async Task OpenAsync(Guid id)
+    {
+        error = null;
+        var result = await AppService.GetStaffCreditCheckAsync(id);
+        if (!result.Success || result.Data is null)
+        {
+            error = result.Error;
+            return;
+        }
+        view = result.Data;
+        if (view.Summary.Status is StaffCreditCheck.Queued or StaffCreditCheck.Processing && view.Summary.RequestedByUserId == AuthService.CurrentUser?.Id)
+        {
+            // Still running: show the progress panel instead of an empty result.
+            running = view.Summary;
+            runningSections = view.Sections.ToList();
+            runningSince = view.StartedAt ?? view.Summary.CreatedAt;
+            tab = Tab.New;
+            StartPolling(id);
+            return;
+        }
+        tab = Tab.Result;
+    }
+
+    private async Task DownloadAsync()
+    {
+        if (view is null) return;
+        downloading = true;
+        try
+        {
+            var pdf = await AppService.DownloadStaffCreditCheckPdfAsync(view.Summary.Id);
+            if (!pdf.Success)
+            {
+                error = pdf.Error;
+                return;
+            }
+            await JS.InvokeVoidAsync("downloadFileFromBytes", pdf.Data.FileName, "application/pdf", pdf.Data.Content);
+        }
+        finally
+        {
+            downloading = false;
+        }
+    }
+
+    private async Task SetScope(bool all)
+    {
+        everyone = all;
+        await ReloadHistory();
+    }
+
+    private async Task ReloadHistory()
+    {
+        historyPage = 1;
+        await LoadHistoryAsync();
+    }
+
+    private async Task GoTo(int page)
+    {
+        historyPage = page;
+        await LoadHistoryAsync();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        var result = await AppService.ListStaffCreditChecksAsync(
+            everyone, string.IsNullOrEmpty(historyType) ? null : historyType, string.IsNullOrEmpty(historyStatus) ? null : historyStatus,
+            historyFrom, historyTo, historyPage);
+        if (result.Success)
+            history = result.Data;
+        else
+        {
+            error = result.Error;
+            history = new StaffCreditCheckPage(1, 20, 0, []);
+        }
+    }
+
+    private static string StatusWord(string status) => status switch
+    {
+        StaffCreditCheck.Completed => "Completed",
+        StaffCreditCheck.Processing => "Running",
+        StaffCreditCheck.Queued => "Waiting",
+        StaffCreditCheck.Failed => "Failed",
+        _ => status,
+    };
+
+    private static string RingFor(decimal score) => score >= 70 ? "#2e7d32" : score >= 50 ? "#f59e0b" : "#ef4444";
+
+    public void Dispose()
+    {
+        polling?.Cancel();
+        polling?.Dispose();
+    }
+}

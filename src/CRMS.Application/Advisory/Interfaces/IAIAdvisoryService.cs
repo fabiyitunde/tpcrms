@@ -38,7 +38,10 @@ public record CustomerAdvisoryRequest(
     CustomerBureauInput? Bureau,
     CustomerCashflowInput? Cashflow,
     CustomerExposureInput Exposure,
-    CustomerIdentityInput Identity);
+    CustomerIdentityInput Identity,
+    /// <summary>True for a company check: the identity figures then mean "CAC record found and
+    /// active" rather than "BVN verified", and the wording says the company, not the person.</summary>
+    bool IsCompany = false);
 
 public record CustomerBureauInput(
     string Bureau,

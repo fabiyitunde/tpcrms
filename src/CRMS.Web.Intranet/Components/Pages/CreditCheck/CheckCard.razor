@@ -1,0 +1,47 @@
+@using CRMS.Application.CustomerCheck
+
+@* A section card on the credit check result: title, the section's outcome as a pill, then either
+   the body (answered) or the reason it has nothing to show. *@
+
+<div class="card cc-card">
+    <div class="cc-card-head">
+        <span class="material-symbols-outlined cc-card-icon">@Icon</span>
+        <span class="cc-card-title">@Title</span>
+        @if (!string.IsNullOrEmpty(Badge)) { <span class="cc-tag">@Badge</span> }
+        <span class="cc-pill cc-pill-@Status">@Word</span>
+    </div>
+    <div class="cc-card-body">
+        @if (Status == SectionStatuses.Ok)
+        {
+            @ChildContent
+            @if (!string.IsNullOrWhiteSpace(Reason)) { <div class="cc-note">@Reason</div> }
+        }
+        else
+        {
+            <div class="cc-empty">
+                <span class="material-symbols-outlined">@(Status == SectionStatuses.NoRecord ? "search_off" : Status == SectionStatuses.Unavailable ? "cloud_off" : "do_not_disturb_on")</span>
+                @(Reason ?? Word)
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string Icon { get; set; } = "info";
+    [Parameter, EditorRequired] public string Status { get; set; } = string.Empty;
+    [Parameter] public string? Reason { get; set; }
+    [Parameter] public string? Badge { get; set; }
+    [Parameter] public RenderFragment? ChildContent { get; set; }
+
+    private string Word => Status switch
+    {
+        SectionStatuses.Ok => "Answered",
+        SectionStatuses.NoRecord => "No record",
+        SectionStatuses.Unavailable => "Unavailable",
+        SectionStatuses.NotRequested => "Not run",
+        SectionStatuses.NotAllowed => "Not allowed",
+        SectionStatuses.NotPossible => "Not possible",
+        _ => Status,
+    };
+}

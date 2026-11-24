@@ -6,14 +6,14 @@
         <div class="content-header">
             <span class="header-icon"><span class="material-symbols-outlined">hub</span></span>
             <div>
-                <h1>Partner API, Customer Credit Checks and API Consumers</h1>
+                <h1>Partner API, Partner Credit Checks and API Consumers</h1>
                 <p>Third-party systems that run customer credit checks on the bank's behalf</p>
             </div>
         </div>
 
         <div class="content-card">
             <h2>How it fits together</h2>
-            <p class="intro-text">A partner system (for example a farmers' portal or a fintech) can ask the CRMS to run a <strong>customer credit check</strong> on a person or a business: credit bureau, fraud screening, account verification and an advisory rating, in whatever combination the partner is allowed. The partner calls the API with its key, the CRMS runs the sections in the background, and when the check is done the CRMS calls the partner back with a signed result. Three admin pages cover this: <strong>API Consumers</strong> sets up who may call, <strong>Customer Credit Checks</strong> lists every check that was asked for, and <strong>Partner API</strong> shows usage, billing and callback health.</p>
+            <p class="intro-text">A partner system (for example a farmers' portal or a fintech) can ask the CRMS to run a <strong>customer credit check</strong> on a person by BVN: credit bureau, fraud screening, account verification and an advisory rating, in whatever combination the partner is allowed. The partner calls the API with its key, the CRMS runs the sections in the background, and when the check is done the CRMS calls the partner back with a signed result. Three admin pages cover this: <strong>API Consumers</strong> sets up who may call, <strong>Partner Credit Checks</strong> lists every check that was asked for, and <strong>Partner API</strong> shows usage, billing and callback health.</p>
         </div>
 
         <div class="content-card">
@@ -27,7 +27,7 @@
         </div>
 
         <div class="content-card">
-            <h2>Customer Credit Checks</h2>
+            <h2>Partner Credit Checks</h2>
             <p>Every check a partner has asked for: when, which consumer, the request id, the sections asked for, the status, how many third-party calls it made, whether the advisory ran, and whether the partner acknowledged the callback. Filter by consumer, status or request id. Open a row to see the full detail of each section and the callback attempts. This is the page to open when a partner says "we never got the result".</p>
         </div>
 
@@ -78,6 +78,67 @@
                     <tr><td><strong>Business Credit</strong></td><td>Download a CRC, First Central or Premium business credit report for a company and read the raw response.</td></tr>
                     <tr><td><strong>Core Banking</strong></td><td>Fetch a BOA account by number and see the raw core banking record, including directors and signatories.</td></tr>
                     <tr><td><strong>Email Sending</strong></td><td>Send any email template to an address of your choice and read the provider's answer, to prove the email channel works before blaming a mailbox.</td></tr>
+                </tbody>
+            </table>
+            <div class="visibility-badge admin">
+                <span class="material-symbols-outlined">admin_panel_settings</span>
+                System Administrators only
+            </div>
+        </div>
+        break;
+
+    case "credit-check":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">person_search</span></span>
+            <div>
+                <h1>Credit Check</h1>
+                <p>Check a person or a company in one go, without opening a loan case</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text"><strong>Credit Check</strong> in the menu asks the credit bureaus, the identity and fraud services, core banking and the CRMS what they know about one person (by BVN) or one company (by RC, BN or IT number), and scores it with the same AI advisory the bank's loan checks use. It appears in the menu only for the roles an administrator has allowed in Admin &gt; Feature Access.</p>
+            <table class="info-table">
+                <thead><tr><th>Section</th><th>Individual</th><th>Company</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Identity / registration</strong></td><td>The BVN record: name, date of birth, phone (partly hidden), watch-list.</td><td>The CAC record: status, registration date, address, nature of business, directors and shareholders.</td></tr>
+                    <tr><td><strong>Credit bureau</strong></td><td>First Central, then CRC, then Credit Registry, with the score.</td><td>CRC, then First Central business report.</td></tr>
+                    <tr><td><strong>Fraud check</strong></td><td>Individual fraud score, with an optional AML screen.</td><td>Business fraud score, with an optional AML screen.</td></tr>
+                    <tr><td><strong>BOA accounts and loans</strong></td><td>Found by BVN.</td><td>Found from the BOA account numbers you give; an account registered to a different company is left out.</td></tr>
+                    <tr><td><strong>CRMS cases</strong></td><td>Every case the BVN appears on, in any role.</td><td>Every case on that registration number, as borrower or corporate guarantor.</td></tr>
+                    <tr><td><strong>AI advisory</strong></td><td colspan="2">A score out of 100, a risk rating, a recommendation, red flags, conditions and a written summary. Give a proposed amount and tenor for a real repayment-capacity reading.</td></tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="content-card">
+            <h2>Running a check</h2>
+            <div class="numbered-steps">
+                <div class="numbered-step"><div class="step-num">1</div><div class="step-content"><h4>Choose Individual or Company</h4><p>Enter the BVN, or the registration number with its prefix and the registered name. For a company, add at least one of its BOA account numbers so the bank sections can run.</p></div></div>
+                <div class="numbered-step"><div class="step-num">2</div><div class="step-content"><h4>Pick the sections</h4><p>All are ticked. Sections marked <strong>billed</strong> call a paid service, so untick what you do not need.</p></div></div>
+                <div class="numbered-step"><div class="step-num">3</div><div class="step-content"><h4>Say why</h4><p>A short reason is required, and a case reference if there is one. Both are kept with the check and in the audit trail.</p></div></div>
+                <div class="numbered-step"><div class="step-num">4</div><div class="step-content"><h4>Wait for the result</h4><p>A check takes one to two minutes. You can leave the page; the result waits in <strong>History</strong>. Download it as a branded PDF to keep on file.</p></div></div>
+            </div>
+            <p>You can run one check at a time. You see the checks you ran; roles allowed to see everyone's checks also get an <strong>All staff</strong> view, and each look at someone else's check is recorded in the audit trail.</p>
+        </div>
+        break;
+
+    case "admin-feature-access":
+        <div class="content-header">
+            <span class="header-icon"><span class="material-symbols-outlined">admin_panel_settings</span></span>
+            <div>
+                <h1>Feature Access</h1>
+                <p>Choose which roles may use a feature, without a code change</p>
+            </div>
+        </div>
+
+        <div class="content-card">
+            <p class="intro-text">Some features are open only to roles you choose. Tick the roles for each one and press <strong>Save</strong>. The change applies the next time a user opens a page; nobody needs to sign out. System administrators can always use every feature. Each change is written to the audit trail with who made it, and what the roles were before and after.</p>
+            <table class="info-table">
+                <thead><tr><th>Feature</th><th>What it allows</th></tr></thead>
+                <tbody>
+                    <tr><td><strong>Run credit checks</strong></td><td>Credit Check in the menu: run individual and company checks, and see the checks they ran.</td></tr>
+                    <tr><td><strong>See every staff member's credit checks</strong></td><td>The <strong>All staff</strong> view in Credit Check history: open and download checks anyone ran. Give this to supervisors and auditors only.</td></tr>
                 </tbody>
             </table>
             <div class="visibility-badge admin">

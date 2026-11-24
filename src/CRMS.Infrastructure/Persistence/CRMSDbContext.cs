@@ -191,6 +191,11 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckJob> CustomerCheckJobs => Set<Domain.Aggregates.CustomerCheck.CustomerCheckJob>();
     public DbSet<Domain.Aggregates.CustomerCheck.CustomerCheckPrice> CustomerCheckPrices => Set<Domain.Aggregates.CustomerCheck.CustomerCheckPrice>();
 
+    // Credit checks staff run from the intranet (individual and company), kept apart from the partner jobs above,
+    // and which roles may use a feature (Admin > Feature Access).
+    public DbSet<Domain.Aggregates.CreditCheck.StaffCreditCheck> StaffCreditChecks => Set<Domain.Aggregates.CreditCheck.StaffCreditCheck>();
+    public DbSet<Domain.Aggregates.Access.FeatureAccessRule> FeatureAccessRules => Set<Domain.Aggregates.Access.FeatureAccessRule>();
+
     // Vendor billing: every billable event (third-party call, partner check, loan milestone) and the dated rate card.
     public DbSet<Domain.Aggregates.Billing.BillingUsage> BillingUsages => Set<Domain.Aggregates.Billing.BillingUsage>();
     public DbSet<Domain.Aggregates.Billing.BillingRate> BillingRates => Set<Domain.Aggregates.Billing.BillingRate>();

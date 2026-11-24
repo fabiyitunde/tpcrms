@@ -8,6 +8,10 @@ public interface ICustomerCheckService
     /// failure blank another. Read-only against every provider.</summary>
     Task<CustomerCheckOutcome> CheckAsync(ApiConsumer consumer, CustomerCheckQuery query, CancellationToken ct = default);
 
+    /// <summary>The same check for any requester, a member of staff included; the partner overload
+    /// above maps its consumer through <see cref="CustomerCheckRequester.ForConsumer"/>.</summary>
+    Task<CustomerCheckOutcome> CheckAsync(CustomerCheckRequester requester, CustomerCheckQuery query, CancellationToken ct = default);
+
     /// <summary>Keyed hash of an identifier, for the audit log and the reuse store. Never reversible.</summary>
     string HashIdentifier(string value);
 

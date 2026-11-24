@@ -1,0 +1,154 @@
+@page "/admin/feature-access"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize(Roles = "SystemAdmin")]
+@inject ApplicationService AppService
+@using CRMS.Application.Access
+@using CRMS.Domain.Constants
+
+<PageTitle>Feature Access - CRMS</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Feature Access</h1>
+        <p class="page-subtitle">Choose which roles may use each feature. Changes apply the next time a user opens a page; nobody needs to sign out.</p>
+    </div>
+</div>
+
+<div class="alert alert-info mb-4" style="display: flex; gap: 8px; align-items: flex-start;">
+    <span class="material-symbols-outlined" style="font-size: 20px;">info</span>
+    <span>System administrators can always use every feature, so they are not listed. Each change is written to the audit trail with your name.</span>
+</div>
+
+@if (rules is null)
+{
+    <div style="display: flex; justify-content: center; padding: var(--space-12);"><span class="material-symbols-outlined fa-spin" style="font-size: 32px; color: var(--primary-500);">progress_activity</span></div>
+}
+else
+{
+    @foreach (var rule in rules)
+    {
+        var picked = draft[rule.FeatureKey];
+        var dirty = !picked.SetEquals(rule.AllowedRoles);
+        <div class="card fa-card">
+            <div class="fa-head">
+                <div>
+                    <h3 class="fa-title">@rule.Label</h3>
+                    <p class="fa-desc">@rule.Description</p>
+                </div>
+                <div class="fa-count">
+                    <strong>@picked.Count</strong>
+                    <span>role@(picked.Count == 1 ? "" : "s") + admins</span>
+                </div>
+            </div>
+            <div class="fa-roles">
+                @foreach (var role in OfferedRoles)
+                {
+                    var on = picked.Contains(role);
+                    <label class="fa-role @(on ? "on" : "")" title="@Roles.RoleDescriptions.GetValueOrDefault(role)">
+                        <input type="checkbox" checked="@on" @onchange="e => Toggle(rule.FeatureKey, role, (bool)e.Value!)" />
+                        <span>@RoleLabel(role)</span>
+                    </label>
+                }
+            </div>
+            <div class="fa-foot">
+                <span class="fa-muted">
+                    @if (rule.ModifiedAt is { } at)
+                    {
+                        <text>Last changed @((at + TimeSpan.FromHours(1)).ToString("dd MMM yyyy HH:mm")) by @rule.ModifiedBy</text>
+                    }
+                    else
+                    {
+                        <text>Never changed: administrators only.</text>
+                    }
+                </span>
+                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                    @if (messages.TryGetValue(rule.FeatureKey, out var msg))
+                    {
+                        <span class="@(msg.Ok ? "fa-ok" : "fa-err")">@msg.Text</span>
+                    }
+                    <button class="btn btn-ghost btn-sm" disabled="@(!dirty || saving)" @onclick="() => Revert(rule)">Undo</button>
+                    <button class="btn btn-primary btn-sm" disabled="@(!dirty || saving)" @onclick="() => SaveAsync(rule)">Save</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+<style>
+    .fa-spin { animation: fa-spin 1s linear infinite; }
+    @@keyframes fa-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+    .fa-card { padding: var(--space-5) var(--space-6); margin-bottom: var(--space-4); }
+    .fa-head { display: flex; justify-content: space-between; gap: var(--space-4); }
+    .fa-title { font-size: var(--text-lg); margin: 0; }
+    .fa-desc { color: var(--gray-500); font-size: var(--text-sm); margin: 4px 0 0; max-width: 720px; }
+    .fa-count { text-align: right; flex-shrink: 0; }
+    .fa-count strong { display: block; font-size: var(--text-2xl); color: var(--primary-600); line-height: 1; }
+    .fa-count span { font-size: var(--text-xs); color: var(--gray-500); }
+    .fa-roles { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: var(--space-2); margin-top: var(--space-4); }
+    .fa-role { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border: 1px solid var(--gray-200); border-radius: var(--radius-lg); font-size: var(--text-sm); cursor: pointer; }
+    .fa-role.on { border-color: var(--primary-600); background: var(--primary-50); color: var(--primary-700); font-weight: 500; }
+    .fa-foot { display: flex; justify-content: space-between; align-items: center; margin-top: var(--space-4); padding-top: var(--space-3); border-top: 1px solid var(--gray-100); gap: var(--space-3); flex-wrap: wrap; }
+    .fa-muted { color: var(--gray-500); font-size: var(--text-xs); }
+    .fa-ok { color: #047857; font-size: var(--text-sm); }
+    .fa-err { color: #b91c1c; font-size: var(--text-sm); }
+</style>
+
+@code {
+    private List<FeatureAccessRuleDto>? rules;
+    private readonly Dictionary<string, HashSet<string>> draft = [];
+    private readonly Dictionary<string, (bool Ok, string Text)> messages = [];
+    private bool saving;
+
+    // Every role the bank's own administrators manage: not SystemAdmin (always allowed), not the
+    // customer role, not the vendor's roles.
+    private static readonly string[] OfferedRoles = Roles.AllRoles
+        .Where(r => r != Roles.SystemAdmin && r != Roles.Customer && !VendorRoles.Contains(r))
+        .ToArray();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        rules = await AppService.GetFeatureAccessRulesAsync();
+        draft.Clear();
+        foreach (var r in rules)
+            draft[r.FeatureKey] = [.. r.AllowedRoles];
+    }
+
+    private void Toggle(string key, string role, bool on)
+    {
+        messages.Remove(key);
+        if (on) draft[key].Add(role); else draft[key].Remove(role);
+    }
+
+    private void Revert(FeatureAccessRuleDto rule)
+    {
+        draft[rule.FeatureKey] = [.. rule.AllowedRoles];
+        messages.Remove(rule.FeatureKey);
+    }
+
+    private async Task SaveAsync(FeatureAccessRuleDto rule)
+    {
+        saving = true;
+        try
+        {
+            var result = await AppService.UpdateFeatureAccessRuleAsync(rule.FeatureKey, draft[rule.FeatureKey].ToList());
+            await LoadAsync();
+            messages[rule.FeatureKey] = result.Success ? (true, "Saved.") : (false, result.Error ?? "Could not save.");
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private static string RoleLabel(string role) => role switch
+    {
+        "HOReviewer" => "HO Reviewer",
+        "GMFinance" => "GM Finance",
+        "HeadOfLegal" => "Head of Legal",
+        "MdCeo" => "MD / CEO",
+        "HORiskOfficer" => "HO Risk Officer",
+        "HOCommitteeMember" => "HO Committee Member",
+        _ => System.Text.RegularExpressions.Regex.Replace(role, "(?<=[a-z])(?=[A-Z])", " "),
+    };
+}

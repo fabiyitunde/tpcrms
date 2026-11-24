@@ -23,6 +23,13 @@
                 @if (!Collapsed) { <span class="nav-item-text">New Application</span> }
             </NavLink>
         }
+        @if (CanUseCreditCheck)
+        {
+            <NavLink href="/credit-check" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">person_search</span>
+                @if (!Collapsed) { <span class="nav-item-text">Credit Check</span> }
+            </NavLink>
+        }
     </div>
 
     <div class="nav-section">
@@ -176,6 +183,10 @@
                 <span class="material-symbols-outlined nav-item-icon">people</span>
                 @if (!Collapsed) { <span class="nav-item-text">Users</span> }
             </NavLink>
+            <NavLink href="/admin/feature-access" class="nav-item">
+                <span class="material-symbols-outlined nav-item-icon">admin_panel_settings</span>
+                @if (!Collapsed) { <span class="nav-item-text">Feature Access</span> }
+            </NavLink>
             <NavLink href="/admin/products" class="nav-item">
                 <span class="material-symbols-outlined nav-item-icon">inventory_2</span>
                 @if (!Collapsed) { <span class="nav-item-text">Products</span> }
@@ -190,7 +201,7 @@
             </NavLink>
             <NavLink href="/admin/partner-api/checks" class="nav-item">
                 <span class="material-symbols-outlined nav-item-icon">fact_check</span>
-                @if (!Collapsed) { <span class="nav-item-text">Customer Credit Checks</span> }
+                @if (!Collapsed) { <span class="nav-item-text">Partner Credit Checks</span> }
             </NavLink>
             <NavLink href="/admin/api-consumers" class="nav-item">
                 <span class="material-symbols-outlined nav-item-icon">key</span>
@@ -273,6 +284,8 @@
     private int MyQueueCount { get; set; }
     private int OverdueCount { get; set; }
     private int PendingVotesCount { get; set; }
+    // Configured in Admin > Feature Access, so read from the database, not from the roles cached at sign-in.
+    private bool CanUseCreditCheck { get; set; }
 
     private UserInfo? User => AuthService.CurrentUser;
     
@@ -318,5 +331,9 @@
 
         if (IsCommitteeMember)
             PendingVotesCount = await AppService.GetMyPendingVotesCountAsync(userId);
+
+        // Runs in its own scope, so it cannot collide with the page loading alongside the menu.
+        CanUseCreditCheck = await AppService.CanUseFeatureAsync(CRMS.Domain.Aggregates.Access.FeatureKeys.CreditCheckRun)
+            || await AppService.CanUseFeatureAsync(CRMS.Domain.Aggregates.Access.FeatureKeys.CreditCheckViewAll);
     }
 }

@@ -43,6 +43,8 @@ public static class SeedData
         // RH-SHF committee routing bands — same idempotent, every-environment pattern as NAMP above.
         await RhshfWorkflowSeeder.SeedAsync(context, logger);
 
+        await SeedFeatureAccessRulesAsync(context, logger);
+
         // Loan products and committees are configured by the admin via the UI in production.
         // In development they are seeded with mock data for testing convenience.
         if (isDevelopment)
@@ -57,6 +59,28 @@ public static class SeedData
             if (isDevelopment)
                 await SeedTestUsersAsync(context, logger, passwordHasher);
         }
+    }
+
+    /// <summary>
+    /// One row per configurable feature, added when missing and never changed afterwards: the
+    /// roles on it are the administrator's choice. A new row carries no roles, so a new feature
+    /// starts with system administrators only until someone ticks a role in Admin &gt; Feature Access.
+    /// </summary>
+    public static async Task SeedFeatureAccessRulesAsync(CRMSDbContext context, ILogger logger)
+    {
+        var existing = await context.FeatureAccessRules.Select(r => r.FeatureKey).ToListAsync();
+        var missing = Domain.Aggregates.Access.FeatureKeys.All.Where(k => !existing.Contains(k)).ToList();
+        if (missing.Count == 0)
+            return;
+
+        foreach (var key in missing)
+        {
+            var rule = Domain.Aggregates.Access.FeatureAccessRule.Create(key);
+            rule.SetAuditInfo("System Seeder", isNew: true);
+            context.FeatureAccessRules.Add(rule);
+        }
+        await context.SaveChangesAsync();
+        logger.LogInformation("Seeded feature access rule(s): {Keys}.", string.Join(", ", missing));
     }
 
     private static async Task SeedLocationsAsync(CRMSDbContext context, ILogger logger)

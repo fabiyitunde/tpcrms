@@ -9,6 +9,11 @@ namespace CRMS.Infrastructure.ExternalServices.AIServices;
 /// built for a company with accounts and collateral, and its numbers for the three loan tracks
 /// must not move. Four categories; one with no data is reported as not assessed and carries no
 /// score, and the overall score is weighted over the rest.
+/// <para>
+/// The staff company check scores a company with the same rules and weights
+/// (<see cref="CustomerAdvisoryRequest.IsCompany"/>): the numbers are identical, only the wording
+/// of the identity category changes, so an individual's result never moves.
+/// </para>
 /// </summary>
 public class CustomerCheckScoringEngine
 {
@@ -83,7 +88,7 @@ public class CustomerCheckScoringEngine
         if (b is null)
         {
             score -= cc.NoBureauRecordPenalty;
-            concerns.Add("No credit bureau holds a record for this person; only the bank's own history is assessed.");
+            concerns.Add($"No credit bureau holds a record for this {(r.IsCompany ? "company" : "person")}; only the bank's own history is assessed.");
         }
         else
         {
@@ -244,15 +249,19 @@ public class CustomerCheckScoringEngine
         var concerns = new List<string>();
         decimal score = cc.IdentityBaseScore;
 
-        if (id.BvnVerified == true) { score += cc.BvnVerifiedBonus; positives.Add("BVN verified with the identity provider."); }
-        else if (id.BvnVerified == false) { score -= cc.BvnUnverifiedPenalty; concerns.Add("The BVN could not be verified."); redFlags.Add("The BVN could not be verified."); }
-        else concerns.Add("Identity was not checked.");
+        // A company check passes "CAC record found and active" in the same slot as a verified BVN.
+        var (verified, unverified, unchecked_) = r.IsCompany
+            ? ("Registration confirmed active with the Corporate Affairs Commission.", "The CAC registration could not be confirmed as active.", "CAC registration was not checked.")
+            : ("BVN verified with the identity provider.", "The BVN could not be verified.", "Identity was not checked.");
+        if (id.BvnVerified == true) { score += cc.BvnVerifiedBonus; positives.Add(verified); }
+        else if (id.BvnVerified == false) { score -= cc.BvnUnverifiedPenalty; concerns.Add(unverified); redFlags.Add(unverified); }
+        else concerns.Add(unchecked_);
 
         if (id.WatchListed == true) { score -= cc.WatchListedPenalty; concerns.Add("The BVN is watch-listed."); redFlags.Add("The BVN is watch-listed."); }
 
         if (id.FraudRiskScore is { } fs)
         {
-            if (fs >= ch.HighFraudRiskScoreThreshold) { score -= cc.HighFraudRiskPenalty; concerns.Add($"Fraud risk score {fs} (high)."); redFlags.Add("The fraud check rates this person high risk."); }
+            if (fs >= ch.HighFraudRiskScoreThreshold) { score -= cc.HighFraudRiskPenalty; concerns.Add($"Fraud risk score {fs} (high)."); redFlags.Add(r.IsCompany ? "The fraud check rates this company high risk." : "The fraud check rates this person high risk."); }
             else if (fs >= ch.ElevatedFraudRiskScoreThreshold) { score -= cc.ElevatedFraudRiskPenalty; concerns.Add($"Fraud risk score {fs} (medium)."); }
             else positives.Add($"Fraud risk score {fs} (low).");
         }
@@ -268,7 +277,7 @@ public class CustomerCheckScoringEngine
         else if (id.BankCustomerFound == false) concerns.Add("Not a customer of the bank.");
 
         score = Math.Clamp(score, 0, 100);
-        var rationale = $"BVN {(id.BvnVerified == true ? "verified" : id.BvnVerified == false ? "not verified" : "not checked")}; " +
+        var rationale = $"{(r.IsCompany ? "CAC registration" : "BVN")} {(id.BvnVerified == true ? "verified" : id.BvnVerified == false ? "not verified" : "not checked")}; " +
             $"watch-list {(id.WatchListed == true ? "hit" : id.WatchListed == false ? "clear" : "unknown")}; " +
             $"fraud risk {(id.FraudRiskScore is { } f ? $"{f} ({id.FraudRiskBand})" : "not checked")}; " +
             $"bank customer {(id.BankCustomerFound == true ? "yes" : id.BankCustomerFound == false ? "no" : "unknown")}.";
@@ -310,7 +319,9 @@ public class CustomerCheckScoringEngine
         if (r.Identity.WatchListed == true)
             c.Add("Resolve the watch-list entry with the identity provider before any lending.");
         if (r.Identity.BvnVerified != true)
-            c.Add("Verify the customer's identity in person before disbursement.");
+            c.Add(r.IsCompany
+                ? "Confirm the company's CAC registration and status before disbursement."
+                : "Verify the customer's identity in person before disbursement.");
         if (gaps.Any(g => g.Category == RepaymentCapacity || g.Category == CashflowStability))
             c.Add("Obtain at least six months of bank statements to establish repayment capacity.");
         if (r.Cashflow is { } cf && cf.WindowMonths < 6)

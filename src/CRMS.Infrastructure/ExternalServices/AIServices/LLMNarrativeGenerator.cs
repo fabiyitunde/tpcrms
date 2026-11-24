@@ -91,7 +91,8 @@ public class LLMNarrativeGenerator
     {
         try
         {
-            var narrative = await _llmService.CompleteAsJsonAsync<NarrativeResult>(BuildCustomerSystemPrompt(), BuildCustomerUserPrompt(request, result), ct);
+            var narrative = await _llmService.CompleteAsJsonAsync<NarrativeResult>(
+                request.IsCompany ? BuildCompanySystemPrompt() : BuildCustomerSystemPrompt(), BuildCustomerUserPrompt(request, result), ct);
             if (narrative == null)
                 _logger.LogWarning("LLM returned no narrative for customer credit check advisory {Reference}", request.ReferenceId);
             await BillAsync(narrative != null, narrative == null ? "The model returned no narrative." : null);
@@ -131,6 +132,31 @@ OUTPUT FORMAT (JSON):
     ""weaknessesAnalysis"": ""risk factors and concerns, with figures"",
     ""mitigatingFactors"": ""factors that offset the risks, or null"",
     ""keyRisks"": ""what to watch if the customer is lent to, or null"",
+    ""suggestedConditions"": [""specific, enforceable condition""],
+    ""suggestedCovenants"": []
+}";
+
+    /// <summary>The same brief for a company checked by the bank's own staff. The figures it is given
+    /// are the same shape, so only the framing differs.</summary>
+    public static string BuildCompanySystemPrompt() =>
+        @"You are a senior commercial credit analyst at a Nigerian bank. A member of the bank's staff has asked what is known about one company borrower, identified only by figures below. Write a short, professional advisory narrative from the data and the scores provided.
+
+IMPORTANT RULES:
+1. You are NOT making the decision - the scores and recommendation come from the bank's rules engine and are final
+2. Explain and contextualise them in plain banking language a loan officer can act on
+3. Reference actual figures from the data; never invent or assume anything not provided
+4. Where a category is marked not assessed, say so and what would be needed
+5. Keep each section to 2-4 sentences; the reader is a credit officer
+6. Never refer to the company by name or any identifier; say 'the company'
+7. The company's financial statements are not part of this data; do not comment on profitability or leverage
+
+OUTPUT FORMAT (JSON):
+{
+    ""executiveSummary"": ""2-3 sentence overview, key factors and the recommendation"",
+    ""strengthsAnalysis"": ""positive factors, with figures"",
+    ""weaknessesAnalysis"": ""risk factors and concerns, with figures"",
+    ""mitigatingFactors"": ""factors that offset the risks, or null"",
+    ""keyRisks"": ""what to watch if the company is lent to, or null"",
     ""suggestedConditions"": [""specific, enforceable condition""],
     ""suggestedCovenants"": []
 }";
@@ -203,7 +229,7 @@ OUTPUT FORMAT (JSON):
 
         sb.AppendLine("=== IDENTITY AND FRAUD ===");
         var i = r.Identity;
-        sb.AppendLine($"BVN verified: {Tri(i.BvnVerified)}; watch-listed: {Tri(i.WatchListed)}; fraud risk: {(i.FraudRiskScore is { } fraudScore ? $"{fraudScore} ({i.FraudRiskBand})" : "not checked")}");
+        sb.AppendLine($"{(r.IsCompany ? "CAC registration active" : "BVN verified")}: {Tri(i.BvnVerified)}; watch-listed: {Tri(i.WatchListed)}; fraud risk: {(i.FraudRiskScore is { } fraudScore ? $"{fraudScore} ({i.FraudRiskBand})" : "not checked")}");
         sb.AppendLine($"Bank customer: {Tri(i.BankCustomerFound)}{(i.MonthsAsCustomer is { } m ? $" for {m} months" : "")}{(string.IsNullOrWhiteSpace(i.KycLevel) ? "" : $"; KYC level {i.KycLevel}")}");
         sb.AppendLine();
 
