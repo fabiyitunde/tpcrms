@@ -48,6 +48,7 @@ public static class BillingItems
 
     // Partner API
     public const string PartnerCheck = "partner:check";
+    public const string PartnerCompanyCheck = "partner:company-check";
 
     // Platform fees, one per loan event, priced per flow
     public const string LoanReceived = "loan:received";
@@ -85,6 +86,7 @@ public static class BillingItems
         new(AdvisoryNarrative, BillingCategory.Advisory, "AI advisory narrative"),
 
         new(PartnerCheck, BillingCategory.PartnerApi, "Partner customer credit check"),
+        new(PartnerCompanyCheck, BillingCategory.PartnerApi, "Partner company credit check"),
 
         new(LoanReceived, BillingCategory.Platform, "Application received", PerFlow: true),
         new(LoanBooked, BillingCategory.Platform, "Loan booked", PerFlow: true),

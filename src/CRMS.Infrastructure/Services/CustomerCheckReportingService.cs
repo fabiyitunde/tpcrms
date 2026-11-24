@@ -29,14 +29,17 @@ public class CustomerCheckReportingService : ICustomerCheckReporting
         DateTime CreatedAt, DateTime? StartedAt, DateTime? CompletedAt, int DurationMs, int BilledCalls, string? BureauUsed, bool BureauReused,
         string? SectionOutcomes, string? ErrorCode, string? ErrorMessage, bool HasCallback, string CallbackStatus, int CallbackAttempts,
         DateTime? CallbackDeliveredAt, int? LastCallbackStatusCode, DateTime? NextCallbackAt,
-        decimal? AdvisoryScore, string? AdvisoryRating, string? AdvisoryRecommendation, int RunAttempts);
+        decimal? AdvisoryScore, string? AdvisoryRating, string? AdvisoryRecommendation, int RunAttempts, string SubjectType)
+    {
+        public bool IsCompany => SubjectType == CustomerCheckJob.Company;
+    }
 
     private IQueryable<JobRow> Rows(IQueryable<CustomerCheckJob> jobs) => jobs.Select(j => new JobRow(
         j.Id, j.ConsumerId, j.ConsumerName, j.RequestId, j.Status, j.BvnLast4, j.SectionsRequested,
         j.CreatedAt, j.StartedAt, j.CompletedAt, j.DurationMs, j.BilledCalls, j.BureauUsed, j.BureauReused,
         j.SectionOutcomes, j.ErrorCode, j.ErrorMessage, j.CallbackUrl != null, j.CallbackStatus, j.CallbackAttempts,
         j.CallbackDeliveredAt, j.LastCallbackStatusCode, j.NextCallbackAt,
-        j.AdvisoryScore, j.AdvisoryRating, j.AdvisoryRecommendation, j.RunAttempts));
+        j.AdvisoryScore, j.AdvisoryRating, j.AdvisoryRecommendation, j.RunAttempts, j.SubjectType));
 
     private async Task<(List<JobRow> Jobs, Dictionary<Guid, BilledCallCounts> Calls)> LoadAsync(DateTime from, DateTime to, Guid? consumerId, CancellationToken ct)
     {
@@ -72,7 +75,7 @@ public class CustomerCheckReportingService : ICustomerCheckReporting
         calls.TryGetValue(j.Id, out var c) ? c : BilledCallCounts.None;
 
     private static decimal AmountOf(Dictionary<string, decimal> prices, Dictionary<Guid, BilledCallCounts> calls, JobRow j) =>
-        CustomerCheckBilling.Amount(prices, j.Status, j.SectionOutcomes, CallsOf(calls, j));
+        CustomerCheckBilling.Amount(prices, j.Status, j.SectionOutcomes, CallsOf(calls, j), j.IsCompany);
 
     // ── Overview ─────────────────────────────────────────────────────────────────────────────────
 
@@ -114,7 +117,8 @@ public class CustomerCheckReportingService : ICustomerCheckReporting
         var sectionOutcomes = outcomes.Where(o => o.Outcome != SectionStatuses.NotRequested)
             .GroupBy(o => o.Outcome).Select(g => new NamedCount(g.Key, g.Count()))
             .OrderByDescending(n => n.Count).ToList();
-        var sections = CustomerCheckSections.All.Select(s =>
+        // The individual sections, then the one only a company check has.
+        var sections = CustomerCheckSections.All.Append(CompanyCheckSections.CompanyRegistration).Select(s =>
         {
             var o = outcomes.Where(x => x.Section == s).ToList();
             return new SectionRow(s, o.Count(x => x.Outcome != SectionStatuses.NotRequested),
@@ -214,7 +218,7 @@ public class CustomerCheckReportingService : ICustomerCheckReporting
 
         var quantities = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
         foreach (var j in jobs)
-            foreach (var (item, quantity) in CustomerCheckBilling.Quantities(j.Status, j.SectionOutcomes, CallsOf(calls, j)))
+            foreach (var (item, quantity) in CustomerCheckBilling.Quantities(j.Status, j.SectionOutcomes, CallsOf(calls, j), j.IsCompany))
                 quantities[item] = quantities.GetValueOrDefault(item) + quantity;
         var byItem = CustomerCheckPriceItems.All
             .Where(i => quantities.ContainsKey(i.Item))
@@ -268,5 +272,5 @@ public class CustomerCheckReportingService : ICustomerCheckReporting
         j.SectionsRequested.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
         j.CreatedAt, j.StartedAt, j.CompletedAt, j.DurationMs, j.BilledCalls, j.BureauUsed, j.BureauReused, j.ErrorCode, j.ErrorMessage,
         j.CallbackStatus, j.CallbackAttempts, j.CallbackDeliveredAt, j.LastCallbackStatusCode, j.NextCallbackAt, j.HasCallback,
-        j.AdvisoryScore, j.AdvisoryRating, j.AdvisoryRecommendation, j.RunAttempts);
+        j.AdvisoryScore, j.AdvisoryRating, j.AdvisoryRecommendation, j.RunAttempts, j.SubjectType);
 }

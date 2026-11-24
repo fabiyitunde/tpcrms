@@ -471,6 +471,39 @@ The result is the same object whether it arrives in the callback or from `status
     birth leaves the CRMS.
   - The section is `UNAVAILABLE` when no other section produced anything to score.
 
+## Company credit check
+
+The same pipeline checks a company by its registration number:
+
+| | |
+|---|---|
+| Submit | `POST /api/v1/company-credit-check`, answers `202 Accepted` |
+| One check | `GET /api/v1/company-credit-check/{jobId}` |
+| Past checks | `POST /api/v1/company-credit-check/history` (`rcNumber` in place of `bvn`) |
+
+- **Off by default.** A consumer may call it only once an administrator ticks *Company credit checks*
+  on it in Admin > API Consumers; until then `403 company_checks_not_enabled`, nothing queued or billed.
+  The consumer's sections apply as for individuals, plus `companyRegistration` (CAC), which must be ticked.
+- **Request.** `requestId`, `rcNumber` (prefix RC/BN/IT kept; none means RC) and `companyName` are
+  required. `nubans` (up to 5) are needed for the bank sections: core banking finds a company only by
+  account number, and an account whose customer record carries a different incorporation number is
+  dropped and named in `reason`. Options add `annualRevenue` and `loanPurpose`.
+- **Sections.** `companyRegistration` (CAC advanced: status, registration, directors and shareholders),
+  `creditBureau` (business report, CRC then First Central, no score), `fraudCheck` (business fraud),
+  `bankAccounts`/`bankLoans` (`NOT_POSSIBLE` without an account number), `crmsFacilities` (cases on
+  the RC number as borrower or corporate guarantor; balances not read live), `aiAdvisory` (the customer
+  scoring rules with the company flag: identity wording becomes CAC registration).
+- **Jobs.** Same table, `SubjectType = COMPANY`; `BvnHash` holds the keyed hash of `"RC:" + number`
+  and `BvnLast4` the registration number's last four digits. Idempotency, history and GET are scoped to
+  the kind of check, so neither endpoint ever sees the other's jobs. One queue cap covers both.
+- **Callbacks.** `COMPANY_CREDIT_CHECK_COMPLETED|FAILED`, same envelope and signature, `statusUrl` on the
+  company endpoint.
+- **Billing.** The vendor ledger records `partner:company-check`; the consumer price list has its own
+  `company:` items (check, each section, registry/bureau/fraud/advisory calls), all starting at zero.
+
+Staff run the same individual and company checks from the intranet (Credit Check in the menu), kept apart
+from all of this: their own table and worker, billed to "Other lookups", access set in Admin > Feature Access.
+
 ## What the CRMS cannot supply
 
 - Income. The fraud check's financial analysis is therefore never fully assessed.

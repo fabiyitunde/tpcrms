@@ -95,16 +95,19 @@ public sealed class BillingBackfillSource : IBillingBackfillSource
         // 3. Partner checks: the check itself plus the calls its log counted.
         var logs = await _db.CustomerCheckLogs.AsNoTracking()
             .Where(l => l.CreatedAt < before)
-            .Select(l => new { l.Id, l.RequestId, l.ConsumerName, l.BureauUsed, l.IdentityCalls, l.BureauCalls, l.ScoreCalls, l.FraudCalls, l.AdvisoryCalls, l.Error, l.CreatedAt })
+            .Select(l => new { l.Id, l.RequestId, l.ConsumerName, l.SubjectType, l.BureauUsed, l.IdentityCalls, l.BureauCalls, l.ScoreCalls, l.FraudCalls, l.AdvisoryCalls, l.Error, l.CreatedAt })
             .ToListAsync(ct);
         foreach (var l in logs)
         {
-            var scope = new BillingScope(BillingFlow.PartnerApi, l.Id, $"{l.ConsumerName} · {l.RequestId}", "Customer");
-            drafts.Add(new BillingUsageDraft(BillingItems.PartnerCheck, l.Error is null, l.Error, null, null, scope, l.CreatedAt, BillingUsageSource.Reconstructed, $"cclog:{l.Id:N}:check"));
-            Repeat(BillingItems.BvnAdvanced, l.IdentityCalls);
-            Repeat(BureauFullItem(l.BureauUsed), l.BureauCalls);
+            // A company check's calls are the registry, the business bureau and the business fraud check.
+            var company = l.SubjectType == Domain.Aggregates.CustomerCheck.CustomerCheckJob.Company;
+            var scope = new BillingScope(BillingFlow.PartnerApi, l.Id, $"{l.ConsumerName} · {l.RequestId}", company ? "Company" : "Customer");
+            drafts.Add(new BillingUsageDraft(company ? BillingItems.PartnerCompanyCheck : BillingItems.PartnerCheck,
+                l.Error is null, l.Error, null, null, scope, l.CreatedAt, BillingUsageSource.Reconstructed, $"cclog:{l.Id:N}:check"));
+            Repeat(company ? BillingItems.CacAdvanced : BillingItems.BvnAdvanced, l.IdentityCalls);
+            Repeat(company ? BusinessBureauItem(l.BureauUsed) : BureauFullItem(l.BureauUsed), l.BureauCalls);
             Repeat(BureauScoreItem(l.BureauUsed), l.ScoreCalls);
-            Repeat(BillingItems.FraudIndividual, l.FraudCalls);
+            Repeat(company ? BillingItems.FraudBusiness : BillingItems.FraudIndividual, l.FraudCalls);
             Repeat(BillingItems.AdvisoryNarrative, l.AdvisoryCalls);
 
             void Repeat(string item, int n)
@@ -116,6 +119,12 @@ public sealed class BillingBackfillSource : IBillingBackfillSource
 
         return drafts;
     }
+
+    public static string BusinessBureauItem(string? bureau) => bureau switch
+    {
+        "FirstCentral" => BillingItems.BusinessFirstCentral,
+        _ => BillingItems.BusinessCrc,
+    };
 
     public static string BureauFullItem(string? bureau) => bureau switch
     {

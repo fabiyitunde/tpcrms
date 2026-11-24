@@ -499,6 +499,7 @@ else if (overview != null)
 
     private static string SectionLabel(string section) => section switch
     {
+        CompanyCheckSections.CompanyRegistration => "CAC registration (company)",
         CustomerCheckSections.Identity => "Identity",
         CustomerCheckSections.CreditBureau => "Credit bureau",
         CustomerCheckSections.FraudCheck => "Fraud check",

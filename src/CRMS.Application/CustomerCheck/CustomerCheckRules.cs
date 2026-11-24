@@ -87,7 +87,7 @@ public static class CustomerCheckRules
 
         if (errors.Count > 0)
             return (null, errors);
-        return (new CustomerCheckJobFilter(consumerId, from, to, status, requestId, bvnHash, page, pageSize), errors);
+        return (new CustomerCheckJobFilter(consumerId, from, to, status, requestId, bvnHash, page, pageSize, CustomerCheckJob.Individual), errors);
     }
 
     public static (CustomerCheckQuery? Query, List<string> Errors) Validate(CustomerCheckRequest? request, CustomerCheckSettings settings)

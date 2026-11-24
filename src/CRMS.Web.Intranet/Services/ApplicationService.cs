@@ -3440,13 +3440,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>> CreateApiConsumerAsync(
         string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
-        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null)
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null, bool allowCompanyChecks = false)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.CreateApiConsumerHandler>();
             var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.CreateApiConsumerCommand(
-                name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail), CancellationToken.None);
+                name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail, allowCompanyChecks), CancellationToken.None);
             return result.IsSuccess && result.Data != null
                 ? ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Ok(result.Data)
                 : ApiResponse<CRMS.Application.CustomerCheck.DTOs.ApiConsumerKeyIssuedDto>.Fail(result.Error ?? "Failed to create API consumer");
@@ -3460,13 +3460,13 @@ public partial class ApplicationService
 
     public async Task<ApiResponse> UpdateApiConsumerAsync(
         Guid id, string name, string? notes, List<string> allowedSections, int perMinuteLimit, bool reuseBureauReports, int bureauReuseMaxAgeDays, Guid userId,
-        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null)
+        CRMS.Application.CustomerCheck.Commands.ApiConsumerCallbackSettings? callback = null, string? contactEmail = null, bool? allowCompanyChecks = null)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerHandler>();
             var result = await handler.Handle(new CRMS.Application.CustomerCheck.Commands.UpdateApiConsumerCommand(
-                id, name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail), CancellationToken.None);
+                id, name, notes, allowedSections, perMinuteLimit, reuseBureauReports, bureauReuseMaxAgeDays, userId, callback, contactEmail, allowCompanyChecks), CancellationToken.None);
             return result.IsSuccess ? ApiResponse.Ok() : ApiResponse.Fail(result.Error ?? "Failed to update API consumer");
         }
         catch (Exception ex)

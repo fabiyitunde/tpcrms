@@ -12,6 +12,8 @@ public class CustomerCheckLog : AggregateRoot
     public string RequestId { get; private set; } = string.Empty;
     /// <summary>The job this check ran under. Null only for checks recorded before jobs existed.</summary>
     public Guid? JobId { get; private set; }
+    /// <summary><c>INDIVIDUAL</c> or <c>COMPANY</c>, as on the job.</summary>
+    public string SubjectType { get; private set; } = CustomerCheckJob.Individual;
     public Guid ConsumerId { get; private set; }
     public string ConsumerName { get; private set; } = string.Empty;
     public string BvnHash { get; private set; } = string.Empty;
@@ -39,9 +41,11 @@ public class CustomerCheckLog : AggregateRoot
     public static CustomerCheckLog Record(
         string requestId, Guid consumerId, string consumerName, string bvnHash, IReadOnlyList<string> nubanHashes,
         IEnumerable<string> sectionsRequested, IEnumerable<KeyValuePair<string, string>> sectionOutcomes,
-        string? bureauUsed, bool bureauReused, BilledCallCounts billed, int durationMs, string? error, Guid? jobId = null)
+        string? bureauUsed, bool bureauReused, BilledCallCounts billed, int durationMs, string? error, Guid? jobId = null,
+        string subjectType = CustomerCheckJob.Individual)
         => new()
         {
+            SubjectType = subjectType == CustomerCheckJob.Company ? CustomerCheckJob.Company : CustomerCheckJob.Individual,
             RequestId = Cap(requestId, 100)!,
             JobId = jobId,
             ConsumerId = consumerId,

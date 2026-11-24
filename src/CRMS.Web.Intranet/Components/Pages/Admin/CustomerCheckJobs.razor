@@ -89,10 +89,10 @@ else if (pageData != null)
                             <td>@j.ConsumerName</td>
                             <td>
                                 <div style="font-family: monospace; font-size: var(--text-xs);">@j.RequestId</div>
-                                <div class="cj-muted">BVN ****@j.BvnLast4</div>
+                                <div class="cj-muted">@SubjectText(j.SubjectType, j.BvnLast4)</div>
                             </td>
                             <td><span class="badge @StatusClass(j.Status)">@j.Status</span>@(j.RunAttempts > 1 ? $" ×{j.RunAttempts}" : "")</td>
-                            <td><span class="cj-muted">@j.Sections.Count of @CustomerCheckSections.All.Count</span></td>
+                            <td><span class="cj-muted">@j.Sections.Count of @CustomerCheckSections.All.Count</span>@if (j.SubjectType == CustomerCheckJob.Company) { <div><span class="badge badge-info">Company</span></div> }</td>
                             <td class="text-right">@Seconds(j.DurationMs)</td>
                             <td class="text-right">@j.BilledCalls</td>
                             <td>
@@ -157,7 +157,7 @@ else if (pageData != null)
                     <div><span class="cj-fact-label">Status</span><span class="badge @StatusClass(s.Status)">@s.Status</span></div>
                     <div><span class="cj-fact-label">Queued</span><span>@s.QueuedAt.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss")</span></div>
                     <div><span class="cj-fact-label">Finished</span><span>@(s.CompletedAt?.ToLocalTime().ToString("dd MMM yyyy HH:mm:ss") ?? "–") (@Seconds(s.DurationMs))</span></div>
-                    <div><span class="cj-fact-label">Subject</span><span>BVN ****@s.BvnLast4</span></div>
+                    <div><span class="cj-fact-label">Subject</span><span>@SubjectText(s.SubjectType, s.BvnLast4)</span></div>
                     <div><span class="cj-fact-label">Bureau</span><span>@(s.BureauUsed is null ? "–" : $"{Bureaus.Label(s.BureauUsed)}{(s.BureauReused ? " (stored report)" : "")}")</span></div>
                     <div><span class="cj-fact-label">Billable calls</span><span>@s.BilledCalls</span></div>
                     <div><span class="cj-fact-label">Runs</span><span>@s.RunAttempts</span></div>
@@ -377,7 +377,7 @@ else if (pageData != null)
     private static IEnumerable<(string Section, string Outcome)> Outcomes(string? outcomes, IReadOnlyList<string> requested)
     {
         var parsed = CustomerCheckBilling.ParseOutcomes(outcomes).ToDictionary(o => o.Section, o => o.Outcome);
-        foreach (var s in CustomerCheckSections.All)
+        foreach (var s in CustomerCheckSections.All.Prepend(CompanyCheckSections.CompanyRegistration))
         {
             if (parsed.TryGetValue(s, out var o)) { if (o != SectionStatuses.NotRequested) yield return (s, o); }
             else if (requested.Contains(s)) yield return (s, "PENDING");
@@ -405,8 +405,12 @@ else if (pageData != null)
         _ => "badge-gray",
     };
 
+    private static string SubjectText(string subjectType, string last4) =>
+        subjectType == CustomerCheckJob.Company ? $"Company RC ****{last4}" : $"BVN ****{last4}";
+
     private static string SectionLabel(string section) => section switch
     {
+        CompanyCheckSections.CompanyRegistration => "CAC",
         CustomerCheckSections.Identity => "Identity",
         CustomerCheckSections.CreditBureau => "Bureau",
         CustomerCheckSections.FraudCheck => "Fraud",

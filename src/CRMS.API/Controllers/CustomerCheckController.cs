@@ -155,7 +155,8 @@ public class CustomerCheckController : ControllerBase
             return Unauthorized(new { error = "unauthorized", message = "Invalid, missing or inactive API key." });
 
         var job = CustomerCheckJobIds.TryParse(jobId, out var id) ? await _jobs.GetByIdAsync(id, ct) : null;
-        if (job is null || job.ConsumerId != consumer.Id)
+        // A company check is read from its own endpoint; to this one it does not exist.
+        if (job is null || job.ConsumerId != consumer.Id || job.IsCompany)
             return NotFound(new { error = "not_found", message = "No check with that id belongs to this consumer." });
 
         JsonElement? result = null;

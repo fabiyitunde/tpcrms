@@ -25,6 +25,8 @@ A check asks several outside providers for data, so it can take from a few secon
 
 You do not have to use callbacks. If you prefer, submit the check and then ask for the result until it is ready.
 
+**Checking a company?** The same API can check a company by its registration number, once the bank has switched that on for you. Section 15 covers it.
+
 ## What you need
 
 | You need | Where it comes from |
@@ -124,6 +126,7 @@ X-Api-Key: YOUR_API_KEY
 | Submit a check | `POST /api/v1/customer-credit-check` | `202 Accepted` with a job id |
 | Status and result of one check | `GET /api/v1/customer-credit-check/{jobId}` | `200` with the status, and the result when finished |
 | List your past checks | `POST /api/v1/customer-credit-check/history` | `200` with a page of checks |
+| Company checks | `/api/v1/company-credit-check`, with the same three operations | See section 15 |
 
 All request and response bodies are JSON. Send `Content-Type: application/json` with every body. All times are UTC in ISO 8601 format, for example `2026-11-05T09:42:17Z`.
 
@@ -662,6 +665,7 @@ Errors come back as JSON with an `error` code and a `message`. A validation erro
 | 400 | `invalid_payload` | The body is not valid JSON. | Fix the request. |
 | 400 | `validation_failed` | A field is wrong. `messages` lists each problem. | Fix the request. The message names the field, never its value. |
 | 401 | `unauthorized` | The key is missing, wrong or switched off. | Check the key. If it was replaced, use the new one. |
+| 403 | `company_checks_not_enabled` | A company check, but company checks are not switched on for you. | Ask the bank to enable them. |
 | 404 | `not_found` | No check with that id belongs to you. | Check the job id. |
 | 429 | `rate_limited` | You sent too many requests in a minute. | Wait for the number of seconds in the `Retry-After` header, then retry. |
 | 429 | `queue_full` | You have too many checks waiting or running. | Wait for some to finish, then retry. |
@@ -677,6 +681,7 @@ The job's `status` is `FAILED` and `error` says why. The same appears in a `CUST
 | `timed_out` | The check took too long and was stopped. |
 | `interrupted` | The check was interrupted more than once by a restart. |
 | `consumer_inactive` | Your access was switched off before the check ran. |
+| `company_checks_not_enabled` | Company checks were switched off for you before a company check ran. |
 
 Submit the check again with a new `requestId`. If it keeps failing, contact the bank.
 
@@ -744,6 +749,99 @@ Speak to your contact at the bank. To help them find the check quickly, send:
 - the HTTP status and the `error` code you received
 
 Never send an API key, a signing secret or a full BVN in an email or a support message.
+
+# 15. Checking a company
+
+The same API can check a company instead of a person, from its registration number. It works exactly like the customer check: you submit it, it runs in the background, the result is posted to your callback and kept for you to fetch. The key, the signing secret, the limits, the retries and the idempotency rules are the same.
+
+**Company checks are switched off until the bank turns them on for you.** Until then, a company request is refused with `403 company_checks_not_enabled` and nothing is charged. Ask your contact at the bank if you need them.
+
+## Endpoints
+
+| What you want | Method and path | Answer |
+|---|---|---|
+| Submit a company check | `POST /api/v1/company-credit-check` | `202 Accepted` with a job id |
+| Status and result of one company check | `GET /api/v1/company-credit-check/{jobId}` | `200` with the status, and the result when finished |
+| List your past company checks | `POST /api/v1/company-credit-check/history` | `200` with a page of checks |
+
+Each kind of check is read from its own endpoints. A company job id given to the customer endpoints is `404 not_found`, and the other way round.
+
+## Sections
+
+| Section | Name in the API | What it tells you |
+|---|---|---|
+| Company registration | `companyRegistration` | The company's record at the Corporate Affairs Commission: status, registration date, address, nature of business, share capital, and its directors, shareholders and other officers. |
+| Credit bureau | `creditBureau` | The company's loans with other lenders from a business credit report (CRC, then First Central). Business reports carry no credit score. |
+| Fraud check | `fraudCheck` | A business fraud risk score and band. |
+| Bank accounts | `bankAccounts` | The company's accounts at the Bank of Agriculture, with balances and activity. |
+| Bank loans | `bankLoans` | The company's loans with the Bank of Agriculture. |
+| CRMS facilities | `crmsFacilities` | Credit cases at the bank on this registration number, as borrower or corporate guarantor. |
+| AI advisory | `aiAdvisory` | A score, a risk rating and a recommendation, with the reasons. |
+
+## The smallest request
+
+```json
+{
+  "requestId": "b2c4e6f8-1a3c-4e5a-9b7d-2f4e6a8c0e1d",
+  "rcNumber": "RC123456",
+  "companyName": "Gote Agricultural Holdings Limited"
+}
+```
+
+- `rcNumber`: required. Keep its prefix: `RC` for a company, `BN` for a business name, `IT` for incorporated trustees. Spaces and hyphens are ignored, and a number with no prefix is read as `RC`.
+- `companyName`: required. The registered name. The registry lookup and the fraud check both need it. When the registered name differs, `companyRegistration.nameMatches` is `false` and a warning says so.
+- `nubans`: optional, up to 5 of the company's account numbers at the bank. **Core banking finds a company only by one of its account numbers.** Without one, `bankAccounts` and `bankLoans` come back `NOT_POSSIBLE`. An account registered to a different company is left out and named in the section's `reason`.
+- `sections`, `callbackUrl`: as for the customer check.
+- `options`: `activityWindowMonths`, `runAmlCheck`, `loanAmount` and `tenorMonths` as for the customer check, plus `annualRevenue` (Naira) and `loanPurpose` (a few words). The fraud check's financial analysis is assessed only when amount, tenor and annual revenue are all given.
+
+## The result
+
+The result has the same shape as the customer result, with `companyRegistration` in place of `identity` and `subject` describing the company:
+
+```json
+{
+  "requestId": "b2c4e6f8-1a3c-4e5a-9b7d-2f4e6a8c0e1d",
+  "dataAsOf": "2026-11-24T10:05:11Z",
+  "requester": "AgriPay Ltd",
+  "subject": { "rcNumber": "RC123456", "companyName": "Gote Agricultural Holdings Limited", "nubansChecked": ["****5678"] },
+  "sectionsRun": ["companyRegistration", "creditBureau", "fraudCheck", "bankAccounts", "bankLoans", "crmsFacilities", "aiAdvisory"],
+  "companyRegistration": {
+    "status": "OK",
+    "source": "SmartComply CAC",
+    "companyName": "GOTE AGRICULTURAL HOLDINGS LIMITED",
+    "rcNumber": "123456",
+    "companyType": "Private Limited Company",
+    "registrationStatus": "ACTIVE",
+    "registrationDate": "2015-03-01",
+    "natureOfBusiness": "Agriculture",
+    "shareCapital": 10000000.00,
+    "nameMatches": true,
+    "affiliates": [
+      { "name": "ADE MUSA", "role": "DIRECTOR", "status": "ACTIVE", "isChairman": true, "isCorporate": false, "appointedOn": "2015-03-01", "shares": 400000, "typeOfShares": "ORDINARY" }
+    ]
+  },
+  "creditBureau": { "status": "OK", "bureau": "CRC", "score": null, "summary": { "totalLoans": 7, "delinquentLoans": 1, "...": "..." }, "loans": [], "recentEnquiries": [] },
+  "fraudCheck": { "status": "OK", "riskScore": 30, "riskBand": "MEDIUM", "...": "..." },
+  "bankAccounts": { "status": "OK", "...": "as for the customer check" },
+  "bankLoans": { "status": "OK", "...": "as for the customer check" },
+  "crmsFacilities": { "status": "OK", "relationships": [ { "role": "BORROWER", "track": "RHSHF", "caseReference": "RHSHF-2026-000123", "...": "..." } ] },
+  "aiAdvisory": { "status": "OK", "overallScore": 58.2, "...": "as for the customer check" },
+  "coverage": { "...": "..." },
+  "warnings": []
+}
+```
+
+The advisory's four categories are the same; for a company, `IdentityAndFraud` rests on the CAC registration being active and on the business fraud score.
+
+## Callbacks and history
+
+- Callback events are `COMPANY_CREDIT_CHECK_COMPLETED` and `COMPANY_CREDIT_CHECK_FAILED`. The envelope, headers and signature are exactly as in section 7, and `statusUrl` points at the company endpoint.
+- The history body takes `rcNumber` in place of `bvn`, matched on its keyed hash. Each item carries `rcNumberLast4` in place of `bvnLast4`.
+- A company check that fails after it was accepted may also carry `company_checks_not_enabled`, when the bank switched company checks off before it ran.
+
+## Charges
+
+Company checks are priced on their own items, agreed with the bank, so they never borrow a price set for a person. The same rules apply: a failed check is not charged, a repeated `requestId` within 24 hours is not a new check, and fetching a stored result is free.
 
 # Appendix A. A complete result
 
@@ -953,11 +1051,11 @@ Never send an API key, a signing secret or a full BVN in an email or a support m
 
 | Where | Values |
 |---|---|
-| Section names | `identity`, `creditBureau`, `fraudCheck`, `bankAccounts`, `bankLoans`, `crmsFacilities`, `aiAdvisory` |
+| Section names | `identity`, `creditBureau`, `fraudCheck`, `bankAccounts`, `bankLoans`, `crmsFacilities`, `aiAdvisory`; for a company, `companyRegistration` in place of `identity` |
 | Job status | `QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED` |
 | Callback status | `NOT_REQUESTED`, `PENDING`, `DELIVERED`, `FAILED` |
-| Event types | `CUSTOMER_CREDIT_CHECK_COMPLETED`, `CUSTOMER_CREDIT_CHECK_FAILED` |
-| Section status | `OK`, `NO_RECORD`, `UNAVAILABLE`, `NOT_REQUESTED`, `NOT_ALLOWED` |
+| Event types | `CUSTOMER_CREDIT_CHECK_COMPLETED`, `CUSTOMER_CREDIT_CHECK_FAILED`, `COMPANY_CREDIT_CHECK_COMPLETED`, `COMPANY_CREDIT_CHECK_FAILED` |
+| Section status | `OK`, `NO_RECORD`, `UNAVAILABLE`, `NOT_REQUESTED`, `NOT_ALLOWED`; for a company's bank sections, also `NOT_POSSIBLE` |
 | Loan status | `RUNNING`, `OVERDUE`, `PAID`, `WRITTEN_OFF`, `IN_PROCESS`, `UNKNOWN` |
 | Account status | `ACTIVE`, `DORMANT`, `CLOSED`, `INACTIVE`, `UNKNOWN` |
 | Bureaus | `FIRST_CENTRAL`, `CRC`, `CREDIT_REGISTRY` |

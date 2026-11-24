@@ -78,7 +78,9 @@ public class CustomerCheckService : ICustomerCheckService
         // The check itself is a billable item to the bank, on top of the third-party calls it made,
         // which the SmartComply wrapper recorded one by one under the same reference.
         if (_billing is not null)
-            await _billing.RecordAsync(new BillingUsageDraft(BillingItems.PartnerCheck, log.Error is null, log.Error, null, log.DurationMs,
+            await _billing.RecordAsync(new BillingUsageDraft(
+                log.SubjectType == CustomerCheckJob.Company ? BillingItems.PartnerCompanyCheck : BillingItems.PartnerCheck,
+                log.Error is null, log.Error, null, log.DurationMs,
                 new BillingScope(BillingFlow.PartnerApi, log.Id, PartnerReference(log.ConsumerName, log.RequestId), "Customer")), ct);
     }
 

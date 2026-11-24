@@ -2343,6 +2343,11 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .ValueGeneratedOnAdd()
                         .HasColumnType("char(36)");
 
+                    b.Property<bool>("AllowCompanyChecks")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("AllowedCallbackHosts")
                         .IsRequired()
                         .ValueGeneratedOnAdd()
@@ -2698,6 +2703,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .HasMaxLength(20)
                         .HasColumnType("varchar(20)");
 
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("INDIVIDUAL");
+
                     b.HasKey("Id");
 
                     b.HasIndex("BvnHash");
@@ -2800,6 +2812,13 @@ namespace CRMS.Infrastructure.Persistence.Migrations
                         .IsRequired()
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
+
+                    b.Property<string>("SubjectType")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)")
+                        .HasDefaultValue("INDIVIDUAL");
 
                     b.HasKey("Id");
 

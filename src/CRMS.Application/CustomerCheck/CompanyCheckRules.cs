@@ -115,6 +115,35 @@ public static class CompanyCheckRules
             string.IsNullOrWhiteSpace(purpose) ? null : purpose), errors);
     }
 
+    /// <summary>The company history search: the individual rules for dates, status, paging and
+    /// request id, scoped to company checks, with an optional registration number matched on its
+    /// keyed hash.</summary>
+    public static (CustomerCheckJobFilter? Filter, List<string> Errors) ValidateHistory(
+        CompanyCheckHistoryRequest request, Guid consumerId, Func<string, string> hash, CustomerCheckSettings settings)
+    {
+        var (filter, errors) = CustomerCheckRules.ValidateHistory(
+            new CustomerCheckHistoryRequest(request.From, request.To, request.Status, request.RequestId, null, request.Page, request.PageSize),
+            consumerId, hash, settings);
+
+        string? rcHash = null;
+        if (!string.IsNullOrWhiteSpace(request.RcNumber))
+        {
+            var rc = NormaliseRegistrationNumber(request.RcNumber);
+            if (rc is null)
+                errors.Add("rcNumber must be a registration number such as RC123456, BN123456 or IT123456.");
+            else
+                rcHash = hash(HashInput(rc.Value.Number));
+        }
+
+        if (filter is null || errors.Count > 0)
+            return (null, errors);
+        return (filter with { BvnHash = rcHash, SubjectType = Domain.Aggregates.CustomerCheck.CustomerCheckJob.Company }, errors);
+    }
+
+    /// <summary>What a company is hashed under, in the job table and the staff checks alike.
+    /// Prefixed so it can never collide with a BVN's hash.</summary>
+    public static string HashInput(string rcNumber) => "RC:" + rcNumber;
+
     // ── Mapping ──────────────────────────────────────────────────────────────────────────────────
 
     /// <summary>The registry's "not found" answer, as the provider words it.</summary>

@@ -23,6 +23,7 @@ public class ApiConsumerConfiguration : IEntityTypeConfiguration<ApiConsumer>
         builder.Property(x => x.CallbackSecretCiphertext).HasMaxLength(500);
         builder.Property(x => x.CallbackSecretPrefix).HasMaxLength(30);
         builder.Property(x => x.MaxQueuedJobs).HasDefaultValue(100);
+        builder.Property(x => x.AllowCompanyChecks).HasDefaultValue(false);
         builder.Property(x => x.CreatedBy).HasMaxLength(100);
         builder.Property(x => x.ModifiedBy).HasMaxLength(100);
 
@@ -62,6 +63,7 @@ public class CustomerCheckJobConfiguration : IEntityTypeConfiguration<CustomerCh
         builder.ToTable("CustomerCheckJobs");
         builder.HasKey(x => x.Id);
 
+        builder.Property(x => x.SubjectType).IsRequired().HasMaxLength(20).HasDefaultValue(CustomerCheckJob.Individual);
         builder.Property(x => x.ConsumerName).IsRequired().HasMaxLength(200);
         builder.Property(x => x.RequestId).IsRequired().HasMaxLength(100);
         builder.Property(x => x.Status).IsRequired().HasMaxLength(20);
@@ -96,6 +98,7 @@ public class CustomerCheckJobConfiguration : IEntityTypeConfiguration<CustomerCh
         builder.Ignore(x => x.DomainEvents);
         builder.Ignore(x => x.SectionList);
         builder.Ignore(x => x.IsOpen);
+        builder.Ignore(x => x.IsCompany);
     }
 }
 
@@ -107,6 +110,7 @@ public class CustomerCheckLogConfiguration : IEntityTypeConfiguration<CustomerCh
         builder.HasKey(x => x.Id);
 
         builder.Property(x => x.RequestId).IsRequired().HasMaxLength(100);
+        builder.Property(x => x.SubjectType).IsRequired().HasMaxLength(20).HasDefaultValue(CustomerCheckJob.Individual);
         builder.Property(x => x.ConsumerName).IsRequired().HasMaxLength(200);
         builder.Property(x => x.BvnHash).IsRequired().HasMaxLength(64);
         builder.Property(x => x.NubanHashes).HasMaxLength(1000);

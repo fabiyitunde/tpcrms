@@ -26,11 +26,19 @@ public class CustomerCheckJob : AggregateRoot
     public const string CallbackDelivered = "DELIVERED";
     public const string CallbackFailed = "FAILED";
 
+    public const string Individual = "INDIVIDUAL";
+    public const string Company = "COMPANY";
+
+    /// <summary><c>INDIVIDUAL</c> (by BVN, the original check) or <c>COMPANY</c> (by registration
+    /// number). Every row written before company checks existed reads as INDIVIDUAL.</summary>
+    public string SubjectType { get; private set; } = Individual;
     public Guid ConsumerId { get; private set; }
     public string ConsumerName { get; private set; } = string.Empty;
     public string RequestId { get; private set; } = string.Empty;
     public string Status { get; private set; } = Queued;
+    /// <summary>Keyed hash of the BVN, or of "RC:" + the registration number for a company check.</summary>
     public string BvnHash { get; private set; } = string.Empty;
+    /// <summary>Last four digits of the BVN, or of the registration number for a company check.</summary>
     public string BvnLast4 { get; private set; } = string.Empty;
     /// <summary>Comma-separated canonical section names.</summary>
     public string SectionsRequested { get; private set; } = string.Empty;
@@ -71,9 +79,10 @@ public class CustomerCheckJob : AggregateRoot
 
     public static CustomerCheckJob Create(
         Guid consumerId, string consumerName, string requestId, string bvnHash, string bvnLast4,
-        IEnumerable<string> sections, string requestCiphertext, string? callbackUrl)
+        IEnumerable<string> sections, string requestCiphertext, string? callbackUrl, string subjectType = Individual)
         => new()
         {
+            SubjectType = subjectType == Company ? Company : Individual,
             ConsumerId = consumerId,
             ConsumerName = Cap(consumerName, 200)!,
             RequestId = Cap(requestId, 100)!,
@@ -88,6 +97,8 @@ public class CustomerCheckJob : AggregateRoot
         };
 
     public bool IsOpen => Status is Queued or Processing;
+
+    public bool IsCompany => SubjectType == Company;
 
     /// <summary>The worker has taken the job. Counted, so a job that keeps getting interrupted is
     /// eventually failed rather than run forever.</summary>

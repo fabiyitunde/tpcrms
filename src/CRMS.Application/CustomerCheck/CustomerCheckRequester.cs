@@ -41,5 +41,13 @@ public sealed record CustomerCheckRequester(
         BillingFlow.PartnerApi,
         PartnerReference(consumer.Name, requestId));
 
+    /// <summary>The same partner running a company check: its company sections (the shared ones plus
+    /// companyRegistration, as ticked for it), billed to the Partner API under the same reference.</summary>
+    public static CustomerCheckRequester ForConsumerCompany(ApiConsumer consumer, string requestId) =>
+        ForConsumer(consumer, requestId) with
+        {
+            AllowedSections = consumer.AllowCompanyChecks ? CompanyCheckSections.All.Where(consumer.Allows).ToHashSet() : new HashSet<string>(),
+        };
+
     public static string PartnerReference(string consumerName, string requestId) => $"{consumerName} · {requestId}";
 }

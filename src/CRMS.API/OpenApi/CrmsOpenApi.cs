@@ -48,6 +48,8 @@ public static class CrmsOpenApi
         {
             ["CustomerCheck"] = ("Customer credit check", Groups.Partners,
                 "For third-party systems doing credit checks on the bank's behalf. One BVN in; identity, credit bureau, fraud check, bank accounts and loans, CRMS facilities and an AI advisory out. **Asynchronous:** submit a check (202), then receive the result on your callback URL or fetch it by job id. Authenticate with your consumer key in `X-Api-Key`."),
+            ["CompanyCheck"] = ("Company credit check", Groups.Partners,
+                "For third-party systems checking a company on the bank's behalf. One registration number and name in; CAC registration with directors and shareholders, business credit bureau, business fraud check, bank accounts and loans, CRMS cases and an AI advisory out. Same key, limits, callbacks and signing as the customer credit check, and available only once the bank has switched company checks on for your consumer. Authenticate with your consumer key in `X-Api-Key`."),
             ["PartyExposure"] = ("Party exposure", Groups.Partners,
                 "For the Farmers Portal's Farmer 360: every CRMS facility a person or company is tied to, in any role, across the three loan tracks. Requests carry the portal's API key and an HMAC signature."),
             ["RhshfSubmission"] = ("RH-SHF credit profiles", Groups.Partners,
@@ -105,6 +107,7 @@ public static class CrmsOpenApi
         3. **Run a customer credit check.** `POST /api/v1/customer-credit-check` with a `requestId` of your own and the customer's `bvn`. The answer is `202 Accepted` with a `jobId`. The check then runs in the background and takes up to a minute or two.
         4. **Get the result.** Either receive it on your callback URL, signed with your secret, or call `GET /api/v1/customer-credit-check/{jobId}` until `status` is `COMPLETED`. Stored results can be fetched again at any time, free of charge.
         5. **Look back.** `POST /api/v1/customer-credit-check/history` lists your past checks.
+        6. **Checking a company?** Once the bank has switched company checks on for you, `POST /api/v1/company-credit-check` with a `requestId`, the `rcNumber` and the `companyName` works the same way, with its own status and history endpoints.
 
         Sending the same `requestId` again within 24 hours returns the same job instead of running, and billing, a second check.
 

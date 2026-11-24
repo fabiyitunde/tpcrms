@@ -18,7 +18,7 @@ public static class StaffCreditChecks
 
     /// <summary>The keyed hash a company is stored under. Prefixed so it can never collide with a
     /// BVN's hash.</summary>
-    public static string CompanyHashInput(string rcNumber) => "RC:" + rcNumber;
+    public static string CompanyHashInput(string rcNumber) => CompanyCheckRules.HashInput(rcNumber);
 
     public static StaffCreditCheckSummary Summarise(StaffCreditCheck c) => new(
         c.Id, c.SubjectType, c.SubjectLabel, c.SubjectName, c.Status, c.RequestedByName, c.RequestedByUserId,

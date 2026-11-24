@@ -40,6 +40,10 @@ public class ApiConsumer : AggregateRoot
     public DateTime? CallbackSecretRotatedAt { get; private set; }
     /// <summary>Checks the consumer may have queued or running at once.</summary>
     public int MaxQueuedJobs { get; private set; } = 100;
+    /// <summary>Whether the consumer may call the company credit check at all. Off for every
+    /// consumer until an administrator turns it on, so no existing partner can run (or be billed
+    /// for) a company check it did not ask for. Its sections still need ticking in AllowedSections.</summary>
+    public bool AllowCompanyChecks { get; private set; }
 
     private ApiConsumer() { }
 
@@ -114,6 +118,13 @@ public class ApiConsumer : AggregateRoot
         var domain = value[(at + 1)..];
         return domain.Contains('.') && !domain.StartsWith('.') && !domain.EndsWith('.')
             && Uri.CheckHostName(domain) == UriHostNameType.Dns;
+    }
+
+    public void SetCompanyChecks(bool allowed, Guid modifiedBy)
+    {
+        if (AllowCompanyChecks == allowed) return;
+        AllowCompanyChecks = allowed;
+        SetAuditInfo(modifiedBy.ToString());
     }
 
     public void SetActive(bool active, Guid modifiedBy)

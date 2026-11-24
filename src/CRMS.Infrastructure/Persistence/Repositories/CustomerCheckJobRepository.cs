@@ -16,9 +16,9 @@ public class CustomerCheckJobRepository : ICustomerCheckJobRepository
     public Task<CustomerCheckJob?> GetByIdAsync(Guid id, CancellationToken ct = default)
         => _context.CustomerCheckJobs.FirstOrDefaultAsync(j => j.Id == id, ct);
 
-    public Task<CustomerCheckJob?> FindByRequestIdAsync(Guid consumerId, string requestId, DateTime since, CancellationToken ct = default)
+    public Task<CustomerCheckJob?> FindByRequestIdAsync(Guid consumerId, string requestId, DateTime since, string subjectType, CancellationToken ct = default)
         => _context.CustomerCheckJobs
-            .Where(j => j.ConsumerId == consumerId && j.RequestId == requestId && j.CreatedAt >= since)
+            .Where(j => j.ConsumerId == consumerId && j.RequestId == requestId && j.CreatedAt >= since && j.SubjectType == subjectType)
             .OrderByDescending(j => j.CreatedAt)
             .FirstOrDefaultAsync(ct);
 
@@ -73,6 +73,7 @@ public class CustomerCheckJobRepository : ICustomerCheckJobRepository
         if (!string.IsNullOrEmpty(filter.Status)) q = q.Where(j => j.Status == filter.Status);
         if (!string.IsNullOrEmpty(filter.RequestId)) q = q.Where(j => j.RequestId == filter.RequestId);
         if (!string.IsNullOrEmpty(filter.BvnHash)) q = q.Where(j => j.BvnHash == filter.BvnHash);
+        if (!string.IsNullOrEmpty(filter.SubjectType)) q = q.Where(j => j.SubjectType == filter.SubjectType);
 
         var total = await q.CountAsync(ct);
         var page = Math.Max(1, filter.Page);

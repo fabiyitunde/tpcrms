@@ -11,7 +11,7 @@ public static class ApiConsumerMapping
         c.Id, c.Name, c.Notes, c.KeyPrefix, c.IsActive, c.AllowedSectionList, c.PerMinuteLimit,
         c.ReuseBureauReports, c.BureauReuseMaxAgeDays, c.LastUsedAt, c.KeyRotatedAt, c.CreatedAt,
         c.CallbackUrl, c.AllowedCallbackHostList, c.MaxQueuedJobs, c.CallbackSecretPrefix, c.CallbackSecretRotatedAt,
-        c.ContactEmail, latestSetupLink);
+        c.ContactEmail, latestSetupLink, c.AllowCompanyChecks);
 
     /// <summary>Section names as given, canonicalised; unknown names are an error.</summary>
     public static (List<string> Sections, string? Error) Sections(IEnumerable<string>? given)
@@ -19,7 +19,8 @@ public static class ApiConsumerMapping
         var list = new List<string>();
         foreach (var g in given ?? [])
         {
-            var canonical = CustomerCheckSections.Canonical(g);
+            // companyRegistration is a company-check section; the rest are shared by both checks.
+            var canonical = CustomerCheckSections.Canonical(g) ?? CompanyCheckSections.Canonical(g);
             if (canonical is null)
                 return ([], $"'{g}' is not a known section.");
             if (!list.Contains(canonical)) list.Add(canonical);
@@ -43,7 +44,8 @@ public record CreateApiConsumerCommand(
     int BureauReuseMaxAgeDays,
     Guid CreatedByUserId,
     ApiConsumerCallbackSettings? Callback = null,
-    string? ContactEmail = null) : IRequest<ApplicationResult<ApiConsumerKeyIssuedDto>>;
+    string? ContactEmail = null,
+    bool AllowCompanyChecks = false) : IRequest<ApplicationResult<ApiConsumerKeyIssuedDto>>;
 
 public class CreateApiConsumerHandler : IRequestHandler<CreateApiConsumerCommand, ApplicationResult<ApiConsumerKeyIssuedDto>>
 {
@@ -80,6 +82,8 @@ public class CreateApiConsumerHandler : IRequestHandler<CreateApiConsumerCommand
         if (contactSet.IsFailure)
             return ApplicationResult<ApiConsumerKeyIssuedDto>.Failure(contactSet.Error);
 
+        consumer.SetCompanyChecks(request.AllowCompanyChecks, request.CreatedByUserId);
+
         var callback = request.Callback ?? ApiConsumerCallbackSettings.None;
         var callbackSet = consumer.SetCallback(callback.CallbackUrl, callback.AllowedCallbackHosts, callback.MaxQueuedJobs, request.CreatedByUserId);
         if (callbackSet.IsFailure)
@@ -106,7 +110,8 @@ public record UpdateApiConsumerCommand(
     int BureauReuseMaxAgeDays,
     Guid ModifiedByUserId,
     ApiConsumerCallbackSettings? Callback = null,
-    string? ContactEmail = null) : IRequest<ApplicationResult>;
+    string? ContactEmail = null,
+    bool? AllowCompanyChecks = null) : IRequest<ApplicationResult>;
 
 public class UpdateApiConsumerHandler : IRequestHandler<UpdateApiConsumerCommand, ApplicationResult>
 {
@@ -157,6 +162,10 @@ public class UpdateApiConsumerHandler : IRequestHandler<UpdateApiConsumerCommand
             if (callbackSet.IsFailure)
                 return ApplicationResult.Failure(callbackSet.Error);
         }
+
+        // Null leaves company checks as they are.
+        if (request.AllowCompanyChecks is { } allowCompany)
+            consumer.SetCompanyChecks(allowCompany, request.ModifiedByUserId);
 
         _repository.Update(consumer);
         await _unitOfWork.SaveChangesAsync(ct);

@@ -19,7 +19,8 @@ public record ApiConsumerDto(
     string? CallbackSecretPrefix,
     DateTime? CallbackSecretRotatedAt,
     string? ContactEmail = null,
-    ApiConsumerSetupLinkDto? LatestSetupLink = null);
+    ApiConsumerSetupLinkDto? LatestSetupLink = null,
+    bool AllowCompanyChecks = false);
 
 /// <summary>The consumer plus whichever secrets were just issued. Each is returned once, here, and
 /// never again: the key on creation and key rotation, the callback signing secret on creation and

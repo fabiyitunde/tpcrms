@@ -169,6 +169,40 @@ public record CompanyAffiliate(
     long? Shares,
     string? TypeOfShares);
 
+/// <summary>A search of your past company checks. Every field is optional.</summary>
+/// <param name="From">Checks queued on or after this date.</param>
+/// <param name="To">Checks queued on or before this date.</param>
+/// <param name="Status"><c>QUEUED</c>, <c>PROCESSING</c>, <c>COMPLETED</c> or <c>FAILED</c>.</param>
+/// <param name="RequestId">An exact request id.</param>
+/// <param name="RcNumber">A registration number, e.g. <c>RC123456</c>. Matched on its keyed hash.</param>
+/// <param name="Page">Page number, from 1. Default 1.</param>
+/// <param name="PageSize">Items per page, at most 100. Default 50.</param>
+public record CompanyCheckHistoryRequest(
+    DateOnly? From,
+    DateOnly? To,
+    string? Status,
+    string? RequestId,
+    string? RcNumber,
+    int? Page,
+    int? PageSize);
+
+/// <summary>One past company check, without its result.</summary>
+/// <param name="JobId">The job's id; fetch the result with it.</param>
+/// <param name="RcNumberLast4">The last four digits of the registration number checked.</param>
+public record CompanyCheckHistoryItem(
+    string JobId,
+    string RequestId,
+    string Status,
+    DateTime QueuedAt,
+    DateTime? CompletedAt,
+    IReadOnlyList<string> Sections,
+    string RcNumberLast4,
+    CustomerCheckCallbackState Callback);
+
+/// <summary>A page of past company checks, newest first.</summary>
+/// <param name="Total">How many checks match in all.</param>
+public record CompanyCheckHistoryPage(int Page, int PageSize, int Total, IReadOnlyList<CompanyCheckHistoryItem> Items);
+
 /// <summary>What the company check hands back: the reply, plus what billing and the history need.</summary>
 public record CompanyCheckOutcome(
     CompanyCheckResponse Response,

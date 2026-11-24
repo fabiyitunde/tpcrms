@@ -59,6 +59,17 @@ public static class CustomerCheckPriceItems
 
     public static string Section(string section) => SectionPrefix + section;
 
+    // Company checks are priced on their own items, so a company check never borrows a price set
+    // for a person, and the individual list above is unchanged.
+    public const string CompanyPrefix = "company:";
+    public const string CompanyCheck = CompanyPrefix + Check;
+    public const string CompanyCallRegistry = CompanyPrefix + "call:registry";
+    public const string CompanyCallBureau = CompanyPrefix + CallBureau;
+    public const string CompanyCallFraud = CompanyPrefix + CallFraud;
+    public const string CompanyCallAdvisory = CompanyPrefix + CallAdvisory;
+
+    public static string CompanySection(string section) => CompanyPrefix + Section(section);
+
     /// <summary>Item key and display name, in display order.</summary>
     public static readonly IReadOnlyList<(string Item, string DisplayName)> All =
     [
@@ -75,5 +86,17 @@ public static class CustomerCheckPriceItems
         (CallScore, "Third-party call: credit score"),
         (CallFraud, "Third-party call: fraud check"),
         (CallAdvisory, "Third-party call: advisory narrative"),
+        (CompanyCheck, "Company: per completed check"),
+        (CompanySection("companyRegistration"), "Company section: CAC registration"),
+        (CompanySection("creditBureau"), "Company section: credit bureau"),
+        (CompanySection("fraudCheck"), "Company section: fraud check"),
+        (CompanySection("bankAccounts"), "Company section: bank accounts"),
+        (CompanySection("bankLoans"), "Company section: bank loans"),
+        (CompanySection("crmsFacilities"), "Company section: CRMS facilities"),
+        (CompanySection("aiAdvisory"), "Company section: AI advisory"),
+        (CompanyCallRegistry, "Company call: CAC registry"),
+        (CompanyCallBureau, "Company call: business bureau report"),
+        (CompanyCallFraud, "Company call: business fraud check"),
+        (CompanyCallAdvisory, "Company call: advisory narrative"),
     ];
 }

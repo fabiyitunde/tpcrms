@@ -126,7 +126,8 @@ public record CustomerCheckJobSummaryDto(
     decimal? AdvisoryScore,
     string? AdvisoryRating,
     string? AdvisoryRecommendation,
-    int RunAttempts);
+    int RunAttempts,
+    string SubjectType = "INDIVIDUAL");
 
 public record CustomerCheckJobDetailDto(
     CustomerCheckJobSummaryDto Summary,
@@ -146,34 +147,23 @@ public static class CustomerCheckBilling
 {
     public static readonly string[] ChargeableStatuses = [SectionStatuses.Ok, SectionStatuses.NoRecord];
 
-    public static decimal Amount(IReadOnlyDictionary<string, decimal> prices, string status, string? sectionOutcomes, BilledCallCounts calls)
-    {
-        if (status != CustomerCheckJob.Completed) return 0m;
-        var amount = Price(prices, CustomerCheckPriceItems.Check);
-        foreach (var (section, outcome) in ParseOutcomes(sectionOutcomes))
-            if (ChargeableStatuses.Contains(outcome))
-                amount += Price(prices, CustomerCheckPriceItems.Section(section));
-        amount += calls.Identity * Price(prices, CustomerCheckPriceItems.CallIdentity);
-        amount += calls.Bureau * Price(prices, CustomerCheckPriceItems.CallBureau);
-        amount += calls.Score * Price(prices, CustomerCheckPriceItems.CallScore);
-        amount += calls.Fraud * Price(prices, CustomerCheckPriceItems.CallFraud);
-        amount += calls.Advisory * Price(prices, CustomerCheckPriceItems.CallAdvisory);
-        return Math.Round(amount, 2);
-    }
+    public static decimal Amount(IReadOnlyDictionary<string, decimal> prices, string status, string? sectionOutcomes, BilledCallCounts calls, bool company = false)
+        => Math.Round(Quantities(status, sectionOutcomes, calls, company).Sum(q => q.Quantity * Price(prices, q.Item)), 2);
 
-    /// <summary>Quantity of each billable item in one completed check.</summary>
-    public static IEnumerable<(string Item, int Quantity)> Quantities(string status, string? sectionOutcomes, BilledCallCounts calls)
+    /// <summary>Quantity of each billable item in one completed check. A company check counts on the
+    /// company items, so it is priced on its own list; an individual check is priced as it always was.</summary>
+    public static IEnumerable<(string Item, int Quantity)> Quantities(string status, string? sectionOutcomes, BilledCallCounts calls, bool company = false)
     {
         if (status != CustomerCheckJob.Completed) yield break;
-        yield return (CustomerCheckPriceItems.Check, 1);
+        yield return (company ? CustomerCheckPriceItems.CompanyCheck : CustomerCheckPriceItems.Check, 1);
         foreach (var (section, outcome) in ParseOutcomes(sectionOutcomes))
             if (ChargeableStatuses.Contains(outcome))
-                yield return (CustomerCheckPriceItems.Section(section), 1);
-        if (calls.Identity > 0) yield return (CustomerCheckPriceItems.CallIdentity, calls.Identity);
-        if (calls.Bureau > 0) yield return (CustomerCheckPriceItems.CallBureau, calls.Bureau);
+                yield return (company ? CustomerCheckPriceItems.CompanySection(section) : CustomerCheckPriceItems.Section(section), 1);
+        if (calls.Identity > 0) yield return (company ? CustomerCheckPriceItems.CompanyCallRegistry : CustomerCheckPriceItems.CallIdentity, calls.Identity);
+        if (calls.Bureau > 0) yield return (company ? CustomerCheckPriceItems.CompanyCallBureau : CustomerCheckPriceItems.CallBureau, calls.Bureau);
         if (calls.Score > 0) yield return (CustomerCheckPriceItems.CallScore, calls.Score);
-        if (calls.Fraud > 0) yield return (CustomerCheckPriceItems.CallFraud, calls.Fraud);
-        if (calls.Advisory > 0) yield return (CustomerCheckPriceItems.CallAdvisory, calls.Advisory);
+        if (calls.Fraud > 0) yield return (company ? CustomerCheckPriceItems.CompanyCallFraud : CustomerCheckPriceItems.CallFraud, calls.Fraud);
+        if (calls.Advisory > 0) yield return (company ? CustomerCheckPriceItems.CompanyCallAdvisory : CustomerCheckPriceItems.CallAdvisory, calls.Advisory);
     }
 
     public static IEnumerable<(string Section, string Outcome)> ParseOutcomes(string? sectionOutcomes)

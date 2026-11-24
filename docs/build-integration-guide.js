@@ -21,8 +21,8 @@ const { execFileSync } = require('child_process');
 const { marked } = require('marked');
 const puppeteer = require('puppeteer-core');
 
-const VERSION = '1.0';
-const DATE = '6 November 2026';
+const VERSION = '1.1';
+const DATE = '24 November 2026';
 const TITLE = 'Customer Credit Check API';
 const SUBTITLE = 'Integration Guide';
 

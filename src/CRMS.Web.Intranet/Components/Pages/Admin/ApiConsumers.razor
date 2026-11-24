@@ -79,7 +79,10 @@ else
                             }
                         </td>
                         <td><code style="font-size: var(--text-sm);">@c.KeyPrefix…</code></td>
-                        <td style="font-size: var(--text-sm);">@(c.AllowedSections.Count == CustomerCheckSections.All.Count ? "All" : string.Join(", ", c.AllowedSections))</td>
+                        <td style="font-size: var(--text-sm);">
+                            @(CustomerCheckSections.All.All(c.AllowedSections.Contains) ? "All" : string.Join(", ", c.AllowedSections.Where(s => s != CompanyCheckSections.CompanyRegistration)))
+                            @if (c.AllowCompanyChecks) { <div><span class="badge badge-info">Company checks on</span></div> }
+                        </td>
                         <td>@c.PerMinuteLimit</td>
                         <td style="font-size: var(--text-sm);">
                             @if (string.IsNullOrEmpty(c.CallbackUrl))
@@ -179,6 +182,26 @@ else
                         }
                     </div>
                     <div class="form-hint">Bureau, score, fraud, identity and advisory calls are billed per call.</div>
+                </div>
+
+                <div class="form-group">
+                    <label class="form-label">Company credit checks</label>
+                    <label style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2);">
+                        <input type="checkbox" @bind="form.AllowCompanyChecks" />
+                        <span style="font-size: var(--text-sm);">Allow this consumer to check companies by RC number</span>
+                    </label>
+                    @if (form.AllowCompanyChecks)
+                    {
+                        <label style="display: flex; align-items: center; gap: var(--space-2); margin-top: var(--space-2); font-size: var(--text-sm);">
+                            <input type="checkbox" checked="@form.Sections.Contains(CompanyCheckSections.CompanyRegistration)" @onchange="e => SetSection(CompanyCheckSections.CompanyRegistration, (bool)e.Value!)" />
+                            CAC registration (company record, directors and shareholders)
+                        </label>
+                        <div class="form-hint">A company check runs the CAC section plus whichever of the sections above are ticked, except identity. CAC lookups are billed per call.</div>
+                    }
+                    else
+                    {
+                        <div class="form-hint">Off by default. While off, the consumer's company requests are refused and nothing is billed.</div>
+                    }
                 </div>
 
                 <div class="grid grid-cols-2 gap-4">
@@ -515,6 +538,7 @@ else
             CallbackUrl = c.CallbackUrl,
             AllowedCallbackHosts = string.Join(", ", c.AllowedCallbackHosts),
             MaxQueuedJobs = c.MaxQueuedJobs,
+            AllowCompanyChecks = c.AllowCompanyChecks,
         };
         modalError = null;
         showModal = true;
@@ -537,7 +561,7 @@ else
             if (editing == null)
             {
                 var result = await AppService.CreateApiConsumerAsync(
-                    form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty);
+                    form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty, form.AllowCompanyChecks);
                 if (result.Success && result.Data != null)
                 {
                     showModal = false;
@@ -552,7 +576,7 @@ else
             else
             {
                 var result = await AppService.UpdateApiConsumerAsync(
-                    editing.Id, form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty);
+                    editing.Id, form.Name, form.Notes, form.Sections, form.PerMinuteLimit, form.ReuseBureauReports, form.BureauReuseMaxAgeDays, userId, CallbackSettings(), form.ContactEmail ?? string.Empty, form.AllowCompanyChecks);
                 if (result.Success)
                 {
                     showModal = false;
@@ -755,5 +779,6 @@ else
         public string? CallbackUrl { get; set; }
         public string? AllowedCallbackHosts { get; set; }
         public int MaxQueuedJobs { get; set; } = 100;
+        public bool AllowCompanyChecks { get; set; }
     }
 }

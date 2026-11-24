@@ -10,6 +10,12 @@ public static class CustomerCheckEvents
 {
     public const string Completed = "CUSTOMER_CREDIT_CHECK_COMPLETED";
     public const string Failed = "CUSTOMER_CREDIT_CHECK_FAILED";
+    public const string CompanyCompleted = "COMPANY_CREDIT_CHECK_COMPLETED";
+    public const string CompanyFailed = "COMPANY_CREDIT_CHECK_FAILED";
+
+    public static string For(Domain.Aggregates.CustomerCheck.CustomerCheckJob job, bool completed) => job.IsCompany
+        ? (completed ? CompanyCompleted : CompanyFailed)
+        : (completed ? Completed : Failed);
 }
 
 public static class CustomerCheckErrors
@@ -19,6 +25,7 @@ public static class CustomerCheckErrors
     public const string Interrupted = "interrupted";
     public const string ConsumerInactive = "consumer_inactive";
     public const string AuditUnavailable = "audit_unavailable";
+    public const string CompanyChecksNotEnabled = "company_checks_not_enabled";
 }
 
 /// <summary>The answer to a submitted check: it has been stored and queued.</summary>
@@ -159,7 +166,7 @@ public interface ICustomerCheckJobSignal
 public static class CustomerCheckJobMapping
 {
     public static CustomerCheckAccepted Accepted(Domain.Aggregates.CustomerCheck.CustomerCheckJob job) => new(
-        CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status, CustomerCheckJobIds.StatusPath(job.Id),
+        CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status, CustomerCheckJobIds.StatusPath(job),
         job.CreatedAt, job.CallbackUrl is not null);
 
     public static CustomerCheckCallbackState Callback(Domain.Aggregates.CustomerCheck.CustomerCheckJob job) => new(
@@ -173,6 +180,10 @@ public static class CustomerCheckJobMapping
     public static CustomerCheckJobView View(Domain.Aggregates.CustomerCheck.CustomerCheckJob job, JsonElement? result) => new(
         CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status, job.CreatedAt, job.StartedAt, job.CompletedAt,
         job.SectionList, Error(job), Callback(job), result);
+
+    public static CompanyCheckHistoryItem CompanyHistoryItem(Domain.Aggregates.CustomerCheck.CustomerCheckJob job) => new(
+        CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status, job.CreatedAt, job.CompletedAt,
+        job.SectionList, job.BvnLast4, Callback(job));
 
     public static CustomerCheckHistoryItem HistoryItem(Domain.Aggregates.CustomerCheck.CustomerCheckJob job) => new(
         CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status, job.CreatedAt, job.CompletedAt,
@@ -188,4 +199,10 @@ public static class CustomerCheckJobIds
         Guid.TryParseExact(text?.Trim(), "N", out id) || Guid.TryParse(text?.Trim(), out id);
 
     public static string StatusPath(Guid id) => $"/api/v1/customer-credit-check/{Format(id)}";
+
+    public static string CompanyStatusPath(Guid id) => $"/api/v1/company-credit-check/{Format(id)}";
+
+    /// <summary>The path the job is read from: each kind of check is fetched from its own endpoint.</summary>
+    public static string StatusPath(Domain.Aggregates.CustomerCheck.CustomerCheckJob job) =>
+        job.IsCompany ? CompanyStatusPath(job.Id) : StatusPath(job.Id);
 }

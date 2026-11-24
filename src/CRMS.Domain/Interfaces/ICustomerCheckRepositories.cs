@@ -17,7 +17,11 @@ public interface ICustomerCheckJobRepository
     Task AddAsync(CustomerCheckJob job, CancellationToken ct = default);
     Task<CustomerCheckJob?> GetByIdAsync(Guid id, CancellationToken ct = default);
     /// <summary>The consumer's job with this request id queued on or after <paramref name="since"/>.</summary>
-    Task<CustomerCheckJob?> FindByRequestIdAsync(Guid consumerId, string requestId, DateTime since, CancellationToken ct = default);
+    Task<CustomerCheckJob?> FindByRequestIdAsync(Guid consumerId, string requestId, DateTime since, CancellationToken ct = default)
+        => FindByRequestIdAsync(consumerId, requestId, since, CustomerCheckJob.Individual, ct);
+    /// <summary>The same, for one kind of check: a request id reused on the other endpoint is a
+    /// different check, not a repeat.</summary>
+    Task<CustomerCheckJob?> FindByRequestIdAsync(Guid consumerId, string requestId, DateTime since, string subjectType, CancellationToken ct = default);
     /// <summary>Jobs of the consumer that are queued or running.</summary>
     Task<int> CountOpenAsync(Guid consumerId, CancellationToken ct = default);
     /// <summary>Atomically takes the next runnable job: the oldest queued one, or one left
@@ -39,7 +43,8 @@ public record CustomerCheckJobFilter(
     string? RequestId,
     string? BvnHash,
     int Page,
-    int PageSize);
+    int PageSize,
+    string? SubjectType = null);
 
 public interface ICustomerCheckPriceRepository
 {

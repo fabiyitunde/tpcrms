@@ -43,17 +43,20 @@ public class CustomerCheckJobRunner
     private readonly ICustomerCheckJobRepository _jobs;
     private readonly IApiConsumerRepository _consumers;
     private readonly ICustomerCheckService _service;
+    private readonly ICompanyCheckService? _companyService;
     private readonly ICustomerCheckCipher _cipher;
     private readonly CustomerCheckSettings _settings;
     private readonly ILogger<CustomerCheckJobRunner> _logger;
 
     public CustomerCheckJobRunner(
         ICustomerCheckJobRepository jobs, IApiConsumerRepository consumers, ICustomerCheckService service,
-        ICustomerCheckCipher cipher, IOptions<CustomerCheckSettings> settings, ILogger<CustomerCheckJobRunner> logger)
+        ICustomerCheckCipher cipher, IOptions<CustomerCheckSettings> settings, ILogger<CustomerCheckJobRunner> logger,
+        ICompanyCheckService? companyService = null)
     {
         _jobs = jobs;
         _consumers = consumers;
         _service = service;
+        _companyService = companyService;
         _cipher = cipher;
         _settings = settings.Value;
         _logger = logger;
@@ -79,6 +82,12 @@ public class CustomerCheckJobRunner
         {
             job.Fail(CustomerCheckErrors.ConsumerInactive, "The consumer was switched off before the check ran.", 0, now);
             await SaveWithoutAuditAsync(job, stopping);
+            return;
+        }
+
+        if (job.IsCompany)
+        {
+            await RunCompanyAsync(job, consumer, stopping);
             return;
         }
 
@@ -157,18 +166,115 @@ public class CustomerCheckJobRunner
         }
     }
 
+    /// <summary>
+    /// A company job: the same steps as an individual one (decrypt, run, log, store, schedule the
+    /// callback), through the company check. Kept apart so the individual path above is unchanged.
+    /// </summary>
+    private async Task RunCompanyAsync(CustomerCheckJob job, ApiConsumer consumer, CancellationToken stopping)
+    {
+        var now = DateTime.UtcNow;
+        if (_companyService is null || !consumer.AllowCompanyChecks)
+        {
+            job.Fail(CustomerCheckErrors.CompanyChecksNotEnabled, "Company checks were switched off for this consumer before the check ran.", 0, now);
+            await SaveWithoutAuditAsync(job, stopping);
+            return;
+        }
+
+        CompanyCheckQuery? query = null;
+        try { query = JsonSerializer.Deserialize<CompanyCheckQuery>(_cipher.Unprotect(job.RequestCiphertext), Json); }
+        catch (Exception ex) { _logger.LogError(ex, "Company credit check job {JobId}: the stored request could not be read.", job.Id); }
+        if (query is null)
+        {
+            job.Fail(CustomerCheckErrors.CheckFailed, "The stored request could not be read. Send it again.", 0, now);
+            await SaveWithoutAuditAsync(job, stopping);
+            return;
+        }
+
+        var watch = Stopwatch.StartNew();
+        CompanyCheckOutcome? outcome = null;
+        string code = CustomerCheckErrors.CheckFailed;
+        string? failure = null;
+        try
+        {
+            using var cts = CancellationTokenSource.CreateLinkedTokenSource(stopping);
+            cts.CancelAfter(_settings.JobTimeoutMs);
+            outcome = await _companyService.CheckAsync(CustomerCheckRequester.ForConsumerCompany(consumer, query.RequestId), query, cts.Token);
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (OperationCanceledException)
+        {
+            code = CustomerCheckErrors.TimedOut;
+            failure = "The check did not finish within the time allowed.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Company credit check job {JobId} failed for consumer {Consumer}.", job.Id, consumer.Name);
+            failure = "The check could not be completed.";
+        }
+        watch.Stop();
+        var elapsed = (int)Math.Min(int.MaxValue, watch.ElapsedMilliseconds);
+        now = DateTime.UtcNow;
+
+        var outcomes = outcome is null
+            ? query.Sections.Select(s => new KeyValuePair<string, string>(s, "ERROR")).ToList()
+            : CompanyOutcomes(outcome.Response);
+        var log = CustomerCheckLog.Record(
+            job.RequestId, consumer.Id, consumer.Name, job.BvnHash, query.Nubans.Select(_service.HashIdentifier).ToList(),
+            query.Sections, outcomes, outcome?.BureauUsed, false,
+            outcome?.Billed ?? BilledCallCounts.None, elapsed, failure is null ? null : code, job.Id, CustomerCheckJob.Company);
+
+        if (outcome is null)
+            job.Fail(code, failure!, elapsed, now);
+        else
+        {
+            var advisory = outcome.Response.AiAdvisory;
+            var scored = advisory.Status == SectionStatuses.Ok;
+            job.Complete(
+                _cipher.Protect(JsonSerializer.Serialize(outcome.Response, Json)), outcomes,
+                outcome.BureauUsed, false, outcome.Billed.Total, elapsed, now,
+                scored ? advisory.OverallScore : null, scored ? advisory.OverallRating : null, scored ? advisory.Recommendation : null);
+        }
+
+        consumer.Touch();
+        _consumers.Update(consumer);
+        _jobs.Update(job);
+        try
+        {
+            await _service.RecordAsync(log, stopping);
+            _logger.LogInformation("Company credit check job {JobId} {Status} for {Consumer} in {Ms} ms.", job.Id, job.Status, consumer.Name, elapsed);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            _logger.LogError(ex, "Company credit check job {JobId}: the result could not be saved; it will be run again.", job.Id);
+        }
+    }
+
     private async Task SaveWithoutAuditAsync(CustomerCheckJob job, CancellationToken ct)
     {
         _jobs.Update(job);
         try { await _service.RecordAsync(CustomerCheckLog.Record(
                 job.RequestId, job.ConsumerId, job.ConsumerName, job.BvnHash, [], job.SectionList,
                 job.SectionList.Select(s => new KeyValuePair<string, string>(s, "ERROR")), null, false,
-                BilledCallCounts.None, 0, job.ErrorCode, job.Id), ct); }
+                BilledCallCounts.None, 0, job.ErrorCode, job.Id, job.SubjectType), ct); }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             _logger.LogError(ex, "Customer credit check job {JobId}: failure could not be saved.", job.Id);
         }
     }
+
+    public static List<KeyValuePair<string, string>> CompanyOutcomes(CompanyCheckResponse r) =>
+    [
+        new(CompanyCheckSections.CompanyRegistration, r.CompanyRegistration.Status),
+        new(CompanyCheckSections.CreditBureau, r.CreditBureau.Status),
+        new(CompanyCheckSections.FraudCheck, r.FraudCheck.Status),
+        new(CompanyCheckSections.BankAccounts, r.BankAccounts.Status),
+        new(CompanyCheckSections.BankLoans, r.BankLoans.Status),
+        new(CompanyCheckSections.CrmsFacilities, r.CrmsFacilities.Status),
+        new(CompanyCheckSections.AiAdvisory, r.AiAdvisory.Status),
+    ];
 
     public static List<KeyValuePair<string, string>> Outcomes(CustomerCheckResponse r) =>
     [
@@ -280,9 +386,9 @@ public class CustomerCheckCallbackDispatcher
         if (completed && job.ResultCiphertext is not null)
             result = JsonSerializer.Deserialize<JsonElement>(_cipher.Unprotect(job.ResultCiphertext), Json);
         return new CustomerCheckCallbackEnvelope(
-            completed ? CustomerCheckEvents.Completed : CustomerCheckEvents.Failed,
+            CustomerCheckEvents.For(job, completed),
             job.EventId, CustomerCheckJobIds.Format(job.Id), job.RequestId, job.Status,
-            job.CompletedAt ?? DateTime.UtcNow, CustomerCheckJobIds.StatusPath(job.Id),
+            job.CompletedAt ?? DateTime.UtcNow, CustomerCheckJobIds.StatusPath(job),
             completed ? null : new CustomerCheckJobError(job.ErrorCode ?? CustomerCheckErrors.CheckFailed, job.ErrorMessage ?? "The check could not be completed."),
             result);
     }
