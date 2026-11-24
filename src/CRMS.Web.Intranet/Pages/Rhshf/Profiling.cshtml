@@ -846,16 +846,17 @@ else
                                         {
                                             <div class="small text-muted mt-1 text-end">Uploading a new file replaces the current one.</div>
                                         }
-                                        @if (req.AllowedFormats is { Count: > 0 })
-                                        {
-                                            <div class="small text-muted mt-1 text-end">
+                                        <div class="small text-muted mt-1 text-end">
+                                            @if (req.AllowedFormats is { Count: > 0 })
+                                            {
                                                 @RhshfDisplayNames.AcceptedFormatsText(req.AllowedFormats)
                                                 @if (req.MustMatchFinancialTemplate)
                                                 {
                                                     <span>&mdash; it must be the downloaded template, filled in.</span>
                                                 }
-                                            </div>
-                                        }
+                                            }
+                                            <span>Up to @CRMS.Application.Rhshf.Commands.UploadRhshfSupportingDocumentHandler.MaxSizeText(req.Category).</span>
+                                        </div>
                                         @* Carry-over: a CAM the FAC already supplied on an earlier season need not be
                                            uploaded again. Loaded only while this slot is empty, so it disappears once
                                            something is attached — including when the carry-over itself is what filled it. *@

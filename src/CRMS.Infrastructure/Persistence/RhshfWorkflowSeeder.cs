@@ -326,6 +326,7 @@ public static class RhshfWorkflowSeeder
 
         // Mapped to the programme's own eligibility criteria (RSHSF_Programme_Details.docx S/N 15).
         // Mandatory flags are a starting position — tune via Admin > RH-SHF Document Requirements.
+        // BOA relaxed the CAM, the off-take agreement and the account statement (2026-11-24).
         var defaults = new[]
         {
             Requirement(RhshfDocumentCategory.CacCertificate, "CAC Certificate of Incorporation",
@@ -335,11 +336,11 @@ public static class RhshfWorkflowSeeder
             Requirement(RhshfDocumentCategory.CreditAppraisalMemorandum, "Credit Appraisal Memorandum (CAM)",
                 "The CAM prepared for this facility, if one is available.", isMandatory: false, sortOrder: 25),
             Requirement(RhshfDocumentCategory.OffTakeAgreement, "Off-Take / Market Linkage Agreement",
-                "Formalised, legally binding agreement covering the produce being financed.", isMandatory: true, sortOrder: 30),
+                "A legally binding agreement covering the produce being financed, if one is in place.", isMandatory: false, sortOrder: 30),
             Requirement(RhshfDocumentCategory.FarmerRegister, "Farmers Register",
                 "Register of the smallholders under this aggregator, with biometric capture evidence.", isMandatory: true, sortOrder: 40),
             Requirement(RhshfDocumentCategory.BankStatement, "BOA Account Statement",
-                "Statements for the operational Bank of Agriculture account.", isMandatory: true, sortOrder: 50),
+                "Statements for the operational Bank of Agriculture account, if available.", isMandatory: false, sortOrder: 50),
             Requirement(RhshfDocumentCategory.WarehousingEvidence, "Warehousing & Transport Evidence",
                 "Evidence of adequate, secure storage and haulage capacity.", isMandatory: false, sortOrder: 60),
             Requirement(RhshfDocumentCategory.BoardResolution, "Board Resolution",

@@ -17,7 +17,17 @@ public record UploadRhshfSupportingDocumentCommand(
 public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfSupportingDocumentCommand, ApplicationResult>
 {
     private const string ContainerName = "rhshf-documents";
-    private const long MaxSizeBytes = 10 * 1024 * 1024; // 10 MB per file
+    private const long DefaultMaxSizeBytes = 10 * 1024 * 1024;
+    private const long FarmerRegisterMaxSizeBytes = 20 * 1024 * 1024;
+
+    /// <summary>The largest file a slot takes. The farmers register lists every smallholder with
+    /// biometric evidence, so BOA allows it 20 MB; every other document stays at 10 MB.</summary>
+    public static long MaxSizeBytesFor(RhshfDocumentCategory category) =>
+        category == RhshfDocumentCategory.FarmerRegister ? FarmerRegisterMaxSizeBytes : DefaultMaxSizeBytes;
+
+    /// <summary>The limit as the FAC reads it, e.g. "20 MB".</summary>
+    public static string MaxSizeText(RhshfDocumentCategory category) =>
+        $"{MaxSizeBytesFor(category) / (1024 * 1024)} MB";
 
     private readonly IRhshfCreditProfileRepository _repo;
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
@@ -43,8 +53,8 @@ public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfS
     {
         if (request.Content.Length == 0)
             return ApplicationResult.Failure("File is empty.");
-        if (request.Content.Length > MaxSizeBytes)
-            return ApplicationResult.Failure("File exceeds the 10 MB size limit.");
+        if (request.Content.Length > MaxSizeBytesFor(request.Category))
+            return ApplicationResult.Failure($"File exceeds the {MaxSizeText(request.Category)} size limit.");
 
         var profile = await _repo.GetByReferenceAsync(request.Reference, ct);
         if (profile is null)
