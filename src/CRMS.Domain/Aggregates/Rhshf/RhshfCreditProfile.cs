@@ -210,6 +210,9 @@ public class RhshfCreditProfile : AggregateRoot
     private readonly List<RhshfDirector> _directors = [];
     public IReadOnlyList<RhshfDirector> Directors => _directors.AsReadOnly();
 
+    private readonly List<RhshfManagementStaff> _managementStaff = [];
+    public IReadOnlyList<RhshfManagementStaff> ManagementStaff => _managementStaff.AsReadOnly();
+
     private readonly List<RhshfFarmPlan> _farmPlans = [];
     public IReadOnlyList<RhshfFarmPlan> FarmPlans => _farmPlans.AsReadOnly();
 
@@ -397,16 +400,32 @@ public class RhshfCreditProfile : AggregateRoot
     /// corrected file expecting it to take the old one's place, and leaving both had the officer
     /// reading the stale one. <see cref="RhshfDocumentCategory.Other"/> is the catch-all and keeps
     /// any number of files.</summary>
+    /// <remarks>A per-person document (a director's CV or ID, a manager's CV) names its person, and
+    /// replaces only that person's file in the category.</remarks>
     public Result<RhshfSupportingDocument> AddSupportingDocument(
-        RhshfDocumentCategory category, string fileName, string contentType, string storagePath, long sizeBytes)
+        RhshfDocumentCategory category, string fileName, string contentType, string storagePath, long sizeBytes,
+        Guid? directorId = null, Guid? managementStaffId = null)
     {
         if (CurrentStage != RhshfProfilingStage.SupportingDocuments)
             return Result.Failure<RhshfSupportingDocument>("Case is not on the supporting documents stage.");
 
-        if (category != RhshfDocumentCategory.Other)
-            _supportingDocuments.RemoveAll(d => d.Category == category);
+        var appliesTo = RhshfDocumentRequirement.AppliesToFor(category);
+        if (appliesTo == RhshfRequirementAppliesTo.ChiefPromoter)
+            return Result.Failure<RhshfSupportingDocument>("Upload the Chief Promoter's CV on their own row.");
+        if (appliesTo == RhshfRequirementAppliesTo.EachDirector
+            && (managementStaffId.HasValue || directorId is null || _directors.All(d => d.Id != directorId)))
+            return Result.Failure<RhshfSupportingDocument>("Choose which director this document belongs to.");
+        if (appliesTo == RhshfRequirementAppliesTo.EachManagementStaff
+            && (directorId.HasValue || managementStaffId is null || _managementStaff.All(m => m.Id != managementStaffId)))
+            return Result.Failure<RhshfSupportingDocument>("Choose which member of management this document belongs to.");
+        if (appliesTo == RhshfRequirementAppliesTo.Case && (directorId.HasValue || managementStaffId.HasValue))
+            return Result.Failure<RhshfSupportingDocument>("This document belongs to the company, not to a person.");
 
-        var document = new RhshfSupportingDocument(Id, category, fileName, contentType, storagePath, sizeBytes);
+        if (category != RhshfDocumentCategory.Other)
+            _supportingDocuments.RemoveAll(d => d.FillsSlot(category, directorId, managementStaffId));
+
+        var document = new RhshfSupportingDocument(
+            Id, category, fileName, contentType, storagePath, sizeBytes, directorId, managementStaffId);
         _supportingDocuments.Add(document);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success(document);
@@ -452,17 +471,110 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
-    /// <summary>Mandatory categories with nothing attached against them. Empty means the case can be
-    /// submitted; anything here blocks it.</summary>
-    public IReadOnlyList<RhshfDocumentCategory> MissingMandatoryDocuments(IEnumerable<RhshfDocumentRequirement> requirements)
+    /// <summary>Mandatory document slots that block submission — empty, or holding a file the
+    /// reviewer rejected. Per-person slots count once per person, so one director's CV does not stand
+    /// in for another's. Empty means the case can be submitted.</summary>
+    public IReadOnlyList<RhshfReadinessItem> MissingMandatoryDocuments(IEnumerable<RhshfDocumentRequirement> requirements) =>
+        RhshfProfilingReadiness.EvaluateDocuments(this, requirements).Where(i => i.BlocksSubmission).ToList();
+
+    // ── Document verification (staff, at appraisal) ──────────────────────
+
+    /// <summary>A reviewer's check of a FAC document. Only at Appraisal: that is where the Credit
+    /// Officer reviews the file, and the Proceed decision is gated on it.</summary>
+    public Result VerifySupportingDocument(Guid documentId, Guid userId) =>
+        ReviewSupportingDocument(documentId, userId, d => d.Verify(userId), "Document verified");
+
+    public Result RejectSupportingDocument(Guid documentId, Guid userId, string reason) =>
+        ReviewSupportingDocument(documentId, userId, d => d.Reject(userId, reason), "Document rejected", reason);
+
+    private Result ReviewSupportingDocument(
+        Guid documentId, Guid userId, Func<RhshfSupportingDocument, Result> apply, string action, string? note = null)
     {
-        var attached = _supportingDocuments.Select(d => d.Category).ToHashSet();
-        return requirements
-            .Where(r => r.IsActive && r.IsMandatory && !attached.Contains(r.Category))
-            .Select(r => r.Category)
-            .Distinct()
-            .ToList();
+        if (Status != RhshfCaseStatus.UnderReview || InternalStage != RhshfInternalStage.Appraisal)
+            return Result.Failure("Documents can only be verified while the case is at appraisal.");
+
+        var document = _supportingDocuments.FirstOrDefault(d => d.Id == documentId);
+        if (document is null)
+            return Result.Failure("Document not found on this case.");
+
+        var result = apply(document);
+        if (result.IsFailure)
+            return result;
+
+        RecordTransition($"{action}: {document.FileName}", userId, note: note);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
     }
+
+    // ── Management staff & Chief Promoter (FAC, during profiling) ────────
+
+    private bool IsProfiling => Status is RhshfCaseStatus.ProfilingPending or RhshfCaseStatus.ProfilingInProgress;
+
+    public Result<RhshfManagementStaff> AddManagementStaff(string fullName, string position, string? phoneNumber, string? email)
+    {
+        if (!IsProfiling)
+            return Result.Failure<RhshfManagementStaff>("Management staff can only be changed while the case is being profiled.");
+
+        var created = RhshfManagementStaff.Create(Id, fullName, position, phoneNumber, email);
+        if (created.IsFailure)
+            return created;
+
+        _managementStaff.Add(created.Value);
+        UpdatedAt = DateTime.UtcNow;
+        return created;
+    }
+
+    public Result UpdateManagementStaff(Guid staffId, string fullName, string position, string? phoneNumber, string? email)
+    {
+        if (!IsProfiling)
+            return Result.Failure("Management staff can only be changed while the case is being profiled.");
+
+        var staff = _managementStaff.FirstOrDefault(m => m.Id == staffId);
+        if (staff is null)
+            return Result.Failure("Management staff member not found on this case.");
+
+        var result = staff.Update(fullName, position, phoneNumber, email);
+        if (result.IsSuccess)
+            UpdatedAt = DateTime.UtcNow;
+        return result;
+    }
+
+    /// <summary>Takes the person's CV with them: a document for someone no longer on the case would
+    /// otherwise linger, unreachable from any slot.</summary>
+    public Result RemoveManagementStaff(Guid staffId)
+    {
+        if (!IsProfiling)
+            return Result.Failure("Management staff can only be changed while the case is being profiled.");
+
+        var staff = _managementStaff.FirstOrDefault(m => m.Id == staffId);
+        if (staff is null)
+            return Result.Failure("Management staff member not found on this case.");
+
+        _managementStaff.Remove(staff);
+        _supportingDocuments.RemoveAll(d => d.ManagementStaffId == staffId);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    /// <summary>Names the Chief Promoter — a director or a member of management — and clears the flag
+    /// from everyone else, so the case never has two. Null clears it.</summary>
+    public Result SetChiefPromoter(Guid? personId)
+    {
+        if (!IsProfiling)
+            return Result.Failure("The Chief Promoter can only be changed while the case is being profiled.");
+        if (personId.HasValue
+            && _directors.All(d => d.Id != personId) && _managementStaff.All(m => m.Id != personId))
+            return Result.Failure("That person is not on this case.");
+
+        foreach (var d in _directors) d.SetChiefPromoter(d.Id == personId);
+        foreach (var m in _managementStaff) m.SetChiefPromoter(m.Id == personId);
+        UpdatedAt = DateTime.UtcNow;
+        return Result.Success();
+    }
+
+    public string? ChiefPromoterName =>
+        _directors.FirstOrDefault(d => d.IsChiefPromoter)?.FullName
+        ?? _managementStaff.FirstOrDefault(m => m.IsChiefPromoter)?.FullName;
 
     /// <summary>Advances from one profiling stage to the next, or — from the final stage — completes
     /// profiling entirely (external status flips to UnderReview, §5). The single mechanism behind
@@ -472,12 +584,29 @@ public class RhshfCreditProfile : AggregateRoot
         RhshfProfilingStage expectedCurrentStage,
         IEnumerable<RhshfDocumentRequirement>? documentRequirements = null,
         string? ipAddress = null,
-        string? userAgent = null)
+        string? userAgent = null,
+        IEnumerable<RhshfProfilingFieldRequirement>? fieldRequirements = null)
     {
         if (Status != RhshfCaseStatus.ProfilingPending && Status != RhshfCaseStatus.ProfilingInProgress)
             return Result.Failure("Profiling is not currently in progress for this case.");
         if (CurrentStage != expectedCurrentStage)
             return Result.Failure("Stage mismatch — cannot skip or replay a profiling stage.");
+
+        // Directors' and management's details (NIN, phone, ID, Chief Promoter) are checked on leaving
+        // the stage they are entered on, and again at submit for the same reason as documents below:
+        // the FAC can walk back and change them. Which ones are mandatory is the admin's setting.
+        if ((expectedCurrentStage == RhshfProfilingStage.CreditBureauCheck
+             || expectedCurrentStage == RhshfProfilingStage.ReviewAndSubmit)
+            && fieldRequirements is not null)
+        {
+            var gaps = RhshfProfilingReadiness.EvaluateFields(this, fieldRequirements, DateTime.UtcNow)
+                .Where(i => i.BlocksSubmission)
+                .ToList();
+            if (gaps.Count > 0)
+                return Result.Failure(
+                    "Some director or management details are still needed (Credit bureau check step): " +
+                    string.Join("; ", gaps.Select(DescribeGap)) + ".");
+        }
 
         // Mandatory documents are re-checked both on leaving the documents stage AND at final submit.
         // The submit re-check matters now that the FAC can navigate back (GoToStage): a document
@@ -494,9 +623,7 @@ public class RhshfCreditProfile : AggregateRoot
                 // differ deliberately — the programme team renames documents (FarmerRegister is
                 // titled "Farmers Register") and the FAC must be told the name it was shown on the
                 // upload slot, not CRMS's internal identifier.
-                var names = missing
-                    .Select(c => documentRequirements.FirstOrDefault(r => r.Category == c)?.Title ?? c.ToString())
-                    .ToList();
+                var names = missing.Select(DescribeGap).ToList();
                 return Result.Failure($"Required documents are missing: {string.Join(", ", names)}.");
             }
         }
@@ -571,6 +698,13 @@ public class RhshfCreditProfile : AggregateRoot
         return Result.Success();
     }
 
+    private static string DescribeGap(RhshfReadinessItem item) => item.Status switch
+    {
+        RhshfReadinessStatus.Rejected => $"{item.Label} (rejected by the bank — upload a replacement)",
+        RhshfReadinessStatus.Invalid when item.Note is not null => $"{item.Label} ({item.Note.ToLowerInvariant()})",
+        _ => item.Label,
+    };
+
     /// <summary>The furthest profiling stage the FAC has legitimately reached this cycle — the
     /// high-water mark that bounds navigation. It is at least the current stage, and at least one
     /// past every stage already attested (a confirmation for stage N means N+1 was reached). Taking
@@ -630,7 +764,7 @@ public class RhshfCreditProfile : AggregateRoot
     /// <summary>Credit Officer's appraisal — first stage of the post-profiling pipeline (design doc
     /// §3.6). One per CycleNumber; a second call for the same cycle fails (no re-appraising).</summary>
     public Result Appraise(Guid creditOfficerId, RhshfAppraisalOutcome outcome, string? notes, RhshfProfilingStage? returnToStage = null,
-        string? reasonCode = null)
+        string? reasonCode = null, IEnumerable<RhshfDocumentRequirement>? documentRequirements = null)
     {
         if (Status != RhshfCaseStatus.UnderReview)
             return Result.Failure("Case is not under review.");
@@ -645,6 +779,17 @@ public class RhshfCreditProfile : AggregateRoot
         // officer must always be able to reject or send back a case without first modelling it.
         if (outcome == RhshfAppraisalOutcome.Proceed && GetCurrentCycleFinancialAppraisal() is null)
             return Result.Failure("A financial appraisal must be completed before proceeding to legal clearance.");
+
+        // BOA's documents must be checked before the case moves on towards Credit Risk. A rejected
+        // file goes back to the FAC through ReturnToFac, which this guard leaves open.
+        if (outcome == RhshfAppraisalOutcome.Proceed)
+        {
+            var blockers = RhshfProfilingReadiness.AppraisalBlockers(this, documentRequirements);
+            if (blockers.Count > 0)
+                return Result.Failure(
+                    "All mandatory documents must be verified before proceeding, and none may be rejected: " +
+                    string.Join("; ", blockers) + ". Return the case to the FAC to replace a rejected document.");
+        }
 
         _appraisals.Add(new RhshfAppraisal(Id, CurrentCycleNumber, creditOfficerId, outcome, notes));
 
@@ -1786,6 +1931,7 @@ public class RhshfCreditProfile : AggregateRoot
             return Result.Failure("Directors declared by the FAC cannot be removed by staff.");
 
         _directors.Remove(director);
+        _supportingDocuments.RemoveAll(d => d.DirectorId == directorId);
         UpdatedAt = DateTime.UtcNow;
         return Result.Success();
     }
@@ -1795,7 +1941,9 @@ public class RhshfCreditProfile : AggregateRoot
     public void PruneCacDirectorsNotIn(IEnumerable<Guid> keepIds)
     {
         var keep = keepIds.ToHashSet();
-        _directors.RemoveAll(d => d.SourcedFromCac && !keep.Contains(d.Id));
+        var pruned = _directors.Where(d => d.SourcedFromCac && !keep.Contains(d.Id)).Select(d => d.Id).ToHashSet();
+        _directors.RemoveAll(d => pruned.Contains(d.Id));
+        _supportingDocuments.RemoveAll(d => d.DirectorId.HasValue && pruned.Contains(d.DirectorId.Value));
         UpdatedAt = DateTime.UtcNow;
     }
 

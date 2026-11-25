@@ -889,6 +889,18 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Queries.GetRhshfDirectorCrossCheckHandler>();
         services.AddScoped<Application.Rhshf.Commands.RunRhshfDirectorCrossCheckHandler>();
         services.AddScoped<Application.Rhshf.Commands.AddRhshfDirectorHandler>();
+        // BOA additional profiling requirements: directors' identity, management staff, Chief Promoter,
+        // document verification, readiness, field settings and the audited BVN/NIN reveal.
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorIdentityHandler>();
+        services.AddScoped<Application.Rhshf.Commands.AddRhshfManagementStaffHandler>();
+        services.AddScoped<Application.Rhshf.Commands.UpdateRhshfManagementStaffHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RemoveRhshfManagementStaffHandler>();
+        services.AddScoped<Application.Rhshf.Commands.SetRhshfChiefPromoterHandler>();
+        services.AddScoped<Application.Rhshf.Commands.ReviewRhshfSupportingDocumentHandler>();
+        services.AddScoped<Application.Rhshf.Commands.GetRhshfReadinessHandler>();
+        services.AddScoped<Application.Rhshf.Commands.GetRhshfProfilingFieldRequirementsHandler>();
+        services.AddScoped<Application.Rhshf.Commands.SetRhshfProfilingFieldRequirementHandler>();
+        services.AddScoped<Application.Rhshf.Commands.RevealRhshfDirectorIdentityHandler>();
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.RemoveRhshfDirectorHandler>();
         services.AddScoped<Application.Rhshf.Commands.PullRhshfDirectorsFromCbsHandler>();
@@ -904,6 +916,7 @@ public static class DependencyInjection
         services.AddScoped<Application.Rhshf.Queries.GetRhshfFinancialAppraisalHandler>();
         // FAC profiling capture (Phase D)
         services.AddScoped<IRhshfDocumentRequirementRepository, Persistence.Repositories.Rhshf.RhshfDocumentRequirementRepository>();
+        services.AddScoped<IRhshfProfilingFieldRequirementRepository, Persistence.Repositories.Rhshf.RhshfProfilingFieldRequirementRepository>();
         services.AddScoped<Application.Rhshf.Commands.CreateRhshfDocumentRequirementHandler>();
         services.AddScoped<Application.Rhshf.Commands.UpdateRhshfDocumentRequirementHandler>();
         services.AddScoped<Application.Rhshf.Commands.ToggleRhshfDocumentRequirementHandler>();

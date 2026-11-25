@@ -1,5 +1,6 @@
 using CRMS.Application.Common;
 using CRMS.Domain.Interfaces;
+using CRMS.Domain.Services;
 
 namespace CRMS.Application.Rhshf.Queries;
 
@@ -58,7 +59,9 @@ public class GetRhshfBureauReportsHandler
                 r.Id,
                 r.SubjectName,
                 r.PartyType ?? (r.SubjectType == Domain.Enums.SubjectType.Business ? "RhshfCompany" : "RhshfDirector"),
-                r.BVN,
+                // Masked: this DTO reaches the browser, and the full number is only given through the
+                // audited reveal on the Directors tab.
+                string.IsNullOrWhiteSpace(r.BVN) ? null : SensitiveDataMasker.MaskBvn(r.BVN),
                 r.Status.ToString(),
                 r.CreditScore,
                 r.ScoreGrade,
@@ -72,7 +75,9 @@ public class GetRhshfBureauReportsHandler
                 r.FraudRiskScore,
                 r.FraudRecommendation,
                 r.ErrorMessage,
-                r.RawResponseJson,
+                // Not sent: no page renders it, and the raw bureau payload carries the subject's BVN,
+                // addresses and phone numbers in full.
+                null,
                 r.CreatedAt,
                 r.Provider.ToString()))
             .ToList();

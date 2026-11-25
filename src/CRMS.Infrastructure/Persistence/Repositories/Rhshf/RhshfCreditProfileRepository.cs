@@ -45,6 +45,7 @@ public class RhshfCreditProfileRepository : IRhshfCreditProfileRepository
             .Include(x => x.Disbursements)
             .Include(x => x.PreDeploymentChecklist)
             .Include(x => x.Directors)
+            .Include(x => x.ManagementStaff)
             .Include(x => x.FarmPlans)
             .Include(x => x.FinancialAppraisals)
             .Include(x => x.StageConfirmations)

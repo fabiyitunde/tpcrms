@@ -8237,12 +8237,15 @@ public partial class ApplicationService
         }
     }
 
-    public async Task<CRMS.Application.Rhshf.Queries.RhshfDownloadedFileDto?> DownloadRhshfSupportingDocumentAsync(Guid documentId)
+    /// <summary>Who is asking matters: a director's or manager's CV or ID needs the personal-documents
+    /// feature, and every view and download is written to the data-access log.</summary>
+    public async Task<CRMS.Application.Rhshf.Queries.RhshfDownloadedFileDto?> DownloadRhshfSupportingDocumentAsync(Guid documentId, bool isView = false)
     {
         try
         {
             var handler = _sp.GetRequiredService<CRMS.Application.Rhshf.Queries.DownloadRhshfSupportingDocumentHandler>();
-            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.DownloadRhshfSupportingDocumentQuery(documentId), CancellationToken.None);
+            var result = await handler.Handle(new CRMS.Application.Rhshf.Queries.DownloadRhshfSupportingDocumentQuery(
+                documentId, AuthUserId() ?? Guid.Empty, isView), CancellationToken.None);
             return result.IsSuccess ? result.Data : null;
         }
         catch (Exception ex)

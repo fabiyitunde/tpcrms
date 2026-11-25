@@ -11,7 +11,9 @@ namespace CRMS.Application.Rhshf.Commands;
 /// generic storage abstraction every other document upload in CRMS already uses.
 /// </summary>
 public record UploadRhshfSupportingDocumentCommand(
-    string Reference, RhshfDocumentCategory Category, string FileName, string ContentType, byte[] Content)
+    string Reference, RhshfDocumentCategory Category, string FileName, string ContentType, byte[] Content,
+    /// <summary>The director or manager a per-person document (CV, ID) belongs to.</summary>
+    Guid? DirectorId = null, Guid? ManagementStaffId = null)
     : IRequest<ApplicationResult>;
 
 public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfSupportingDocumentCommand, ApplicationResult>
@@ -69,14 +71,23 @@ public class UploadRhshfSupportingDocumentHandler : IRequestHandler<UploadRhshfS
         if (valid.IsFailure)
             return ApplicationResult.Failure(valid.Error);
 
-        // Upload next — the domain call below only fails on a stage mismatch, not on storage
-        // I/O, so there's no path where a stored blob is orphaned by a subsequent domain failure
-        // under normal operation.
+        // The person must be on this case — the ids come from a form post, and a document filed
+        // against someone else's director would be readable from the wrong case.
+        if (request.DirectorId.HasValue && profile.Directors.All(d => d.Id != request.DirectorId))
+            return ApplicationResult.Failure("That director is not on this case.");
+        if (request.ManagementStaffId.HasValue && profile.ManagementStaff.All(m => m.Id != request.ManagementStaffId))
+            return ApplicationResult.Failure("That member of management is not on this case.");
+        if (profile.CurrentStage != RhshfProfilingStage.SupportingDocuments)
+            return ApplicationResult.Failure("Case is not on the supporting documents stage.");
+
+        // Upload next. The checks above cover everything the domain call below can refuse, so a
+        // stored blob is not orphaned by a domain failure under normal operation.
         var storagePath = await _fileStorage.UploadAsync(
             ContainerName, $"{profile.Reference}/{Guid.NewGuid()}-{request.FileName}", request.Content, request.ContentType, ct);
 
         var result = profile.AddSupportingDocument(
-            request.Category, request.FileName, request.ContentType, storagePath, request.Content.Length);
+            request.Category, request.FileName, request.ContentType, storagePath, request.Content.Length,
+            request.DirectorId, request.ManagementStaffId);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

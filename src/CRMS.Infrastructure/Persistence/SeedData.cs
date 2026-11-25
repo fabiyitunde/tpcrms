@@ -63,8 +63,9 @@ public static class SeedData
 
     /// <summary>
     /// One row per configurable feature, added when missing and never changed afterwards: the
-    /// roles on it are the administrator's choice. A new row carries no roles, so a new feature
-    /// starts with system administrators only until someone ticks a role in Admin &gt; Feature Access.
+    /// roles on it are the administrator's choice. A new row carries its feature's default roles
+    /// (<see cref="Domain.Aggregates.Access.FeatureKeys.DefaultRoles"/>) — none for most features, so
+    /// they start with system administrators only until someone ticks a role in Admin &gt; Feature Access.
     /// </summary>
     public static async Task SeedFeatureAccessRulesAsync(CRMSDbContext context, ILogger logger)
     {
@@ -75,7 +76,7 @@ public static class SeedData
 
         foreach (var key in missing)
         {
-            var rule = Domain.Aggregates.Access.FeatureAccessRule.Create(key);
+            var rule = Domain.Aggregates.Access.FeatureAccessRule.Create(key, Domain.Aggregates.Access.FeatureKeys.DefaultRoles(key));
             rule.SetAuditInfo("System Seeder", isNew: true);
             context.FeatureAccessRules.Add(rule);
         }

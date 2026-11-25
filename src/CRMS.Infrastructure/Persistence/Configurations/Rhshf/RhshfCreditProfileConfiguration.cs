@@ -156,6 +156,11 @@ public class RhshfCreditProfileConfiguration : IEntityTypeConfiguration<RhshfCre
             .HasForeignKey(x => x.RhshfCreditProfileId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        builder.HasMany(x => x.ManagementStaff)
+            .WithOne()
+            .HasForeignKey(x => x.RhshfCreditProfileId)
+            .OnDelete(DeleteBehavior.Cascade);
+
         builder.HasMany(x => x.FarmPlans)
             .WithOne()
             .HasForeignKey(x => x.RhshfCreditProfileId)
@@ -251,6 +256,17 @@ public class RhshfSupportingDocumentConfiguration : IEntityTypeConfiguration<Rhs
         // reference is kept alongside the id precisely so the trail survives.
         builder.Property(x => x.ReusedFromReference).HasMaxLength(50);
         builder.Ignore(x => x.IsReused);
+
+        // Per-person documents. No FK: removing a person removes their documents in the aggregate,
+        // and the column must not stop a director row from being replaced on a CAC refresh.
+        builder.HasIndex(x => x.DirectorId);
+        builder.HasIndex(x => x.ManagementStaffId);
+        builder.Ignore(x => x.IsPersonal);
+
+        // Existing rows are given 'Pending' by the migration, so documents uploaded before verification
+        // existed are checked like any new one.
+        builder.Property(x => x.VerificationStatus).IsRequired().HasConversion<string>().HasMaxLength(20);
+        builder.Property(x => x.RejectionReason).HasMaxLength(1000);
     }
 }
 

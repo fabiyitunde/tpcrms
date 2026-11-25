@@ -4,7 +4,9 @@
 @* Verification view. The case carries ONLY the directors the FAC declared at profiling (left card);
    CAC and Core Banking are independent reference sources shown for cross-checking, fetched on demand
    and never merged into the case list — merging was what produced duplicate rows and duplicate
-   (billable) bureau checks. Match flags are computed server-side; raw BVNs never reach the browser. *@
+   (billable) bureau checks. Match flags are computed server-side. BVN, NIN and ID numbers arrive
+   masked; a full BVN or NIN is fetched one at a time through the audited reveal, for users an admin
+   has allowed it in Admin > Feature Access. *@
 
 @{
     // Match the cross-check's FAC view back to the managed rows by name, to badge each declared
@@ -72,6 +74,7 @@
                         <th>Position</th>
                         <th>Shareholding</th>
                         <th>BVN</th>
+                        <th>NIN, phone and ID</th>
                         @if (CrossCheck is not null) { <th>Cross-check</th> }
                         @if (CanManageDirectors) { <th></th> }
                     </tr>
@@ -82,7 +85,7 @@
                         facFlags.TryGetValue(Norm(d.FullName), out var flag);
                         <tr>
                             <td>
-                                <div style="font-weight: 500;">@d.FullName</div>
+                                <div style="font-weight: 500;">@d.FullName @if (d.IsChiefPromoter) { <span class="badge badge-primary">Chief Promoter</span> }</div>
                                 <div style="font-size: var(--text-xs); color: var(--gray-500);">
                                     @(string.IsNullOrEmpty(d.Occupation) ? "FAC-declared" : d.Occupation)
                                 </div>
@@ -93,8 +96,28 @@
                             </td>
                             <td>@(d.ShareholdingPercent.HasValue ? $"{d.ShareholdingPercent:0.##}%" : "—")</td>
                             <td>
-                                @if (d.HasBvn) { <span class="badge badge-success">Provided</span> }
+                                @if (d.HasBvn)
+                                {
+                                    @IdentityValue(d.Id, nin: false, d.BvnMasked)
+                                }
                                 else { <span class="badge badge-warning">Missing</span> }
+                            </td>
+                            <td style="font-size: var(--text-sm);">
+                                <div>NIN: @if (d.HasNin) { @IdentityValue(d.Id, nin: true, d.NinMasked) } else { <span class="badge badge-warning">Missing</span> }</div>
+                                <div>Phone: @(string.IsNullOrWhiteSpace(d.PhoneNumber) ? "—" : d.PhoneNumber)</div>
+                                <div>
+                                    ID:
+                                    @if (d.MeansOfIdType is { } idType)
+                                    {
+                                        <span>@IdTypeLabel(idType) @d.MeansOfIdNumber</span>
+                                        @if (d.MeansOfIdExpiry is { } exp)
+                                        {
+                                            <span style="color: var(--gray-500);">, expires @exp.ToString("dd/MM/yyyy")</span>
+                                        }
+                                        @if (d.IsMeansOfIdExpired) { <span class="badge badge-danger">Expired</span> }
+                                    }
+                                    else { <span class="badge badge-warning">Missing</span> }
+                                </div>
                             </td>
                             @if (CrossCheck is not null)
                             {
@@ -137,7 +160,7 @@
                         <td style="font-weight: 600;" class="@(ShareholdingTotal > 100m ? "text-danger" : "")">
                             @ShareholdingTotal.ToString("0.##")%
                         </td>
-                        <td colspan="@(1 + (CrossCheck is not null ? 1 : 0) + (CanManageDirectors ? 1 : 0))"
+                        <td colspan="@(2 + (CrossCheck is not null ? 1 : 0) + (CanManageDirectors ? 1 : 0))"
                             style="font-size: var(--text-xs); color: var(--gray-500);">
                             @if (ShareholdingTotal > 100m)
                             {
@@ -264,6 +287,49 @@ else
     </div>
 }
 
+@if (_revealError is not null)
+{
+    <div class="alert alert-danger" style="margin-bottom: var(--space-4);">@_revealError</div>
+}
+
+@* Management staff, declared by the FAC on the same profiling step as the directors. No shares and
+   no bureau check; BOA asks for their CVs (Documents tab) and telephone numbers. *@
+<div class="card" style="margin-bottom: var(--space-6);">
+    <div class="card-header">
+        <div style="display: flex; align-items: center; gap: 8px;">
+            <h3 class="card-title">Management Staff <span style="font-weight:400; color:var(--gray-500);">· declared by FAC</span></h3>
+            <span class="badge badge-primary">@(Directors?.ManagementStaff?.Count ?? 0)</span>
+        </div>
+    </div>
+    @if (Directors?.ManagementStaff is not { Count: > 0 } managers)
+    {
+        <div class="empty-state">
+            <div class="empty-state-icon"><span class="material-symbols-outlined">badge</span></div>
+            <div class="empty-state-title">No management staff listed</div>
+            <div class="empty-state-text">Cases profiled before management staff were asked for will have none.</div>
+        </div>
+    }
+    else
+    {
+        <div class="card-body" style="padding: 0;">
+            <table class="table">
+                <thead><tr><th>Name</th><th>Position</th><th>Telephone</th><th>Email</th></tr></thead>
+                <tbody>
+                    @foreach (var m in managers)
+                    {
+                        <tr>
+                            <td style="font-weight: 500;">@m.FullName @if (m.IsChiefPromoter) { <span class="badge badge-primary">Chief Promoter</span> }</td>
+                            <td>@m.Position</td>
+                            <td>@(string.IsNullOrWhiteSpace(m.PhoneNumber) ? "—" : m.PhoneNumber)</td>
+                            <td>@(string.IsNullOrWhiteSpace(m.Email) ? "—" : m.Email)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
+
 @code {
     /// <summary>Mirrors RhshfCreditProfile.DeclaredShareholdingTotal — an unstated holding counts as
     /// nothing, which is why a total under 100% is reported rather than treated as an error.</summary>
@@ -279,6 +345,44 @@ else
     [Parameter] public EventCallback OnAddDirector { get; set; }
     [Parameter] public EventCallback<RhshfDirectorDto> OnEditDirector { get; set; }
     [Parameter] public EventCallback<Guid> OnRemoveDirector { get; set; }
+    /// <summary>Whether this user may reveal a full BVN or NIN. Shows the button only; the handler
+    /// checks again and logs every reveal.</summary>
+    [Parameter] public bool CanRevealIdentity { get; set; }
+    /// <summary>(directorId, nin) → the full value, or null when refused.</summary>
+    [Parameter] public Func<Guid, bool, Task<string?>>? OnRevealIdentity { get; set; }
+
+    // Held only for this render of the tab; gone on navigation, and never cached server-side.
+    private readonly Dictionary<(Guid, bool), string> _revealed = new();
+    private string? _revealError;
+
+    private async Task Reveal(Guid directorId, bool nin)
+    {
+        if (OnRevealIdentity is null) return;
+        var value = await OnRevealIdentity(directorId, nin);
+        if (value is null) { _revealError = "The number could not be revealed."; return; }
+        _revealError = null;
+        _revealed[(directorId, nin)] = value;
+    }
+
+    private RenderFragment IdentityValue(Guid directorId, bool nin, string? masked) => __builder =>
+    {
+        var shown = _revealed.TryGetValue((directorId, nin), out var full) ? full : masked ?? "Provided";
+        __builder.OpenElement(0, "span");
+        __builder.AddAttribute(1, "style", "font-family: var(--font-mono, monospace);");
+        __builder.AddContent(2, shown);
+        __builder.CloseElement();
+        if (CanRevealIdentity && full is null)
+        {
+            __builder.OpenElement(3, "button");
+            __builder.AddAttribute(4, "class", "btn btn-ghost btn-sm");
+            __builder.AddAttribute(5, "title", "Show in full. This is written to the audit trail.");
+            __builder.AddAttribute(6, "onclick", EventCallback.Factory.Create(this, () => Reveal(directorId, nin)));
+            __builder.AddContent(7, "Show");
+            __builder.CloseElement();
+        }
+    };
+
+    private static string IdTypeLabel(CRMS.Domain.Enums.RhshfMeansOfIdType type) => RhshfDisplayNames.MeansOfIdLabel(type);
 
     private static string Norm(string? name) =>
         string.Join(' ', (name ?? "").Trim().ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries));

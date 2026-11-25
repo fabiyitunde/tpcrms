@@ -169,6 +169,8 @@ public class CRMSDbContext : DbContext, IUnitOfWork
     public DbSet<RH.RhshfPreDeploymentChecklistItem> RhshfPreDeploymentChecklistItems => Set<RH.RhshfPreDeploymentChecklistItem>();
     public DbSet<RH.RhshfAdvisory> RhshfAdvisories => Set<RH.RhshfAdvisory>();
     public DbSet<RH.RhshfDirector> RhshfDirectors => Set<RH.RhshfDirector>();
+    public DbSet<RH.RhshfManagementStaff> RhshfManagementStaff => Set<RH.RhshfManagementStaff>();
+    public DbSet<RH.RhshfProfilingFieldRequirement> RhshfProfilingFieldRequirements => Set<RH.RhshfProfilingFieldRequirement>();
     public DbSet<RH.RhshfFarmPlan> RhshfFarmPlans => Set<RH.RhshfFarmPlan>();
     public DbSet<RH.RhshfFinancialAppraisalReport> RhshfFinancialAppraisalReports => Set<RH.RhshfFinancialAppraisalReport>();
     public DbSet<RH.RhshfAppraisalThresholds> RhshfAppraisalThresholds => Set<RH.RhshfAppraisalThresholds>();
@@ -275,10 +277,23 @@ public class CRMSDbContext : DbContext, IUnitOfWork
         {
             entry.State = EntityState.Added;
         }
+        // RhshfSupportingDocument was append-only until reviewers could verify or reject one; that is
+        // a real UPDATE, which the blanket flip would turn into a duplicate-key insert. Same database
+        // existence check as RhshfDirector below.
         foreach (var entry in ChangeTracker.Entries<RH.RhshfSupportingDocument>()
             .Where(e => e.State == EntityState.Modified))
         {
-            entry.State = EntityState.Added;
+            var existsInDb = await RhshfSupportingDocuments.AnyAsync(d => d.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
+        }
+        // RhshfManagementStaff is edited in place by the FAC, so it takes the existence check too.
+        foreach (var entry in ChangeTracker.Entries<RH.RhshfManagementStaff>()
+            .Where(e => e.State == EntityState.Modified))
+        {
+            var existsInDb = await RhshfManagementStaff.AnyAsync(m => m.Id == entry.Entity.Id, cancellationToken);
+            if (!existsInDb)
+                entry.State = EntityState.Added;
         }
         // RhshfAppraisal/RhshfRiskReview ARE genuinely append-only (unlike RhshfIssuedToken above) —
         // never updated after creation, so the blanket flip is safe here.

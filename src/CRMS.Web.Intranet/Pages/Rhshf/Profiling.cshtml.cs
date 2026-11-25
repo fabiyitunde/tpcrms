@@ -36,6 +36,11 @@ public class ProfilingModel : RhshfPublicPageModel
     private readonly UpdateRhshfDirectorShareholdingHandler _updateDirectorShareholdingHandler;
     private readonly UpdateRhshfGuarantorFromProfilingHandler _updateGuarantorHandler;
     private readonly GetRhshfGuarantorsHandler _guarantorsHandler;
+    private readonly UpdateRhshfDirectorIdentityHandler _updateDirectorIdentityHandler;
+    private readonly AddRhshfManagementStaffHandler _addManagementStaffHandler;
+    private readonly UpdateRhshfManagementStaffHandler _updateManagementStaffHandler;
+    private readonly RemoveRhshfManagementStaffHandler _removeManagementStaffHandler;
+    private readonly SetRhshfChiefPromoterHandler _setChiefPromoterHandler;
 
     public ProfilingModel(
         VerifyRhshfProfilingTokenHandler verifyHandler,
@@ -61,7 +66,12 @@ public class ProfilingModel : RhshfPublicPageModel
         ReuseRhshfSupportingDocumentHandler reuseDocumentHandler,
         UpdateRhshfDirectorShareholdingHandler updateDirectorShareholdingHandler,
         UpdateRhshfGuarantorFromProfilingHandler updateGuarantorHandler,
-        GetRhshfGuarantorsHandler guarantorsHandler)
+        GetRhshfGuarantorsHandler guarantorsHandler,
+        UpdateRhshfDirectorIdentityHandler updateDirectorIdentityHandler,
+        AddRhshfManagementStaffHandler addManagementStaffHandler,
+        UpdateRhshfManagementStaffHandler updateManagementStaffHandler,
+        RemoveRhshfManagementStaffHandler removeManagementStaffHandler,
+        SetRhshfChiefPromoterHandler setChiefPromoterHandler)
         : base(verifyHandler)
     {
         _sessionHandler = sessionHandler;
@@ -87,6 +97,11 @@ public class ProfilingModel : RhshfPublicPageModel
         _updateDirectorShareholdingHandler = updateDirectorShareholdingHandler;
         _updateGuarantorHandler = updateGuarantorHandler;
         _guarantorsHandler = guarantorsHandler;
+        _updateDirectorIdentityHandler = updateDirectorIdentityHandler;
+        _addManagementStaffHandler = addManagementStaffHandler;
+        _updateManagementStaffHandler = updateManagementStaffHandler;
+        _removeManagementStaffHandler = removeManagementStaffHandler;
+        _setChiefPromoterHandler = setChiefPromoterHandler;
     }
 
     public RhshfProfilingSessionDto? Session { get; private set; }
@@ -247,14 +262,16 @@ public class ProfilingModel : RhshfPublicPageModel
 
     public async Task<IActionResult> OnPostAddDirectorAsync(
         string reference, string fullName, string? bvn, decimal? shareholdingPercent, bool isChairman,
-        string? email, string? phoneNumber, CancellationToken ct)
+        string? email, string? phoneNumber, string? nin, RhshfMeansOfIdType? meansOfIdType,
+        string? meansOfIdNumber, DateTime? meansOfIdExpiry, CancellationToken ct)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
 
         // The FAC is token-authenticated against the case, not an individual user — no UserId to record.
         var result = await _addDirectorHandler.Handle(
-            new AddRhshfDirectorCommand(reference, fullName, bvn, shareholdingPercent, isChairman, email, phoneNumber, Guid.Empty), ct);
+            new AddRhshfDirectorCommand(reference, fullName, bvn, shareholdingPercent, isChairman, email, phoneNumber, Guid.Empty,
+                nin, meansOfIdType, meansOfIdNumber, meansOfIdExpiry), ct);
 
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
@@ -298,6 +315,84 @@ public class ProfilingModel : RhshfPublicPageModel
             ErrorMessage = result.Error;
         else
             SuccessMessage = "Shareholding updated.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUpdateDirectorIdentityAsync(
+        string reference, Guid directorId, string? nin, string? phoneNumber, string? email,
+        RhshfMeansOfIdType? meansOfIdType, string? meansOfIdNumber, DateTime? meansOfIdExpiry, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _updateDirectorIdentityHandler.Handle(new UpdateRhshfDirectorIdentityCommand(
+            reference, directorId, nin, phoneNumber, email, meansOfIdType, meansOfIdNumber, meansOfIdExpiry, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Director details saved.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostAddManagementStaffAsync(
+        string reference, string fullName, string position, string? phoneNumber, string? email, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _addManagementStaffHandler.Handle(
+            new AddRhshfManagementStaffCommand(reference, fullName, position, phoneNumber, email, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = $"\"{fullName}\" added to management staff.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostUpdateManagementStaffAsync(
+        string reference, Guid staffId, string fullName, string position, string? phoneNumber, string? email, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _updateManagementStaffHandler.Handle(
+            new UpdateRhshfManagementStaffCommand(reference, staffId, fullName, position, phoneNumber, email, Guid.Empty), ct);
+
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Management staff details saved.";
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostRemoveManagementStaffAsync(string reference, Guid staffId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _removeManagementStaffHandler.Handle(new RemoveRhshfManagementStaffCommand(reference, staffId, Guid.Empty), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+
+        return RedirectToPage(new { reference });
+    }
+
+    public async Task<IActionResult> OnPostSetChiefPromoterAsync(string reference, Guid? personId, CancellationToken ct)
+    {
+        if (!await IsAuthorizedForReferenceAsync(reference))
+            return RedirectToPage("SessionExpired");
+
+        var result = await _setChiefPromoterHandler.Handle(new SetRhshfChiefPromoterCommand(reference, personId, Guid.Empty), ct);
+        if (!result.IsSuccess)
+            ErrorMessage = result.Error;
+        else
+            SuccessMessage = "Chief Promoter updated.";
 
         return RedirectToPage(new { reference });
     }
@@ -463,7 +558,8 @@ public class ProfilingModel : RhshfPublicPageModel
     }
 
     public async Task<IActionResult> OnPostUploadAsync(
-        string reference, RhshfDocumentCategory category, IFormFile? file, CancellationToken ct)
+        string reference, RhshfDocumentCategory category, IFormFile? file, CancellationToken ct,
+        Guid? directorId = null, Guid? managementStaffId = null)
     {
         if (!await IsAuthorizedForReferenceAsync(reference))
             return RedirectToPage("SessionExpired");
@@ -478,7 +574,8 @@ public class ProfilingModel : RhshfPublicPageModel
         await file.CopyToAsync(ms, ct);
 
         var result = await _uploadHandler.Handle(
-            new UploadRhshfSupportingDocumentCommand(reference, category, file.FileName, file.ContentType, ms.ToArray()), ct);
+            new UploadRhshfSupportingDocumentCommand(reference, category, file.FileName, file.ContentType, ms.ToArray(),
+                directorId, managementStaffId), ct);
 
         if (!result.IsSuccess)
             ErrorMessage = result.Error;
@@ -486,6 +583,57 @@ public class ProfilingModel : RhshfPublicPageModel
             SuccessMessage = $"\"{file.FileName}\" uploaded.";
 
         return RedirectToPage(new { reference });
+    }
+
+    /// <summary>Whether an admin has made this director/management item mandatory. Unknown keys
+    /// read as optional, so a row the seeder has not added yet never blocks anything.</summary>
+    public bool IsRequired(RhshfProfilingFieldKey key) =>
+        Session?.FieldMandatory?.GetValueOrDefault(key.ToString()) ?? false;
+
+    /// <summary>Opens the director's details panel while something the bank requires is missing.</summary>
+    public bool DirectorNeedsDetails(RhshfProfilingDirectorDto d) =>
+        (IsRequired(RhshfProfilingFieldKey.DirectorNin) && !d.HasNin)
+        || (IsRequired(RhshfProfilingFieldKey.DirectorPhone) && string.IsNullOrWhiteSpace(d.PhoneNumber))
+        || (IsRequired(RhshfProfilingFieldKey.DirectorMeansOfId)
+            && (d.MeansOfIdType is null || d.MeansOfIdExpiry is { } exp && exp.Date < DateTime.UtcNow.Date));
+
+    public static string IdTypeLabel(RhshfMeansOfIdType type) => Models.RhshfDisplayNames.MeansOfIdLabel(type);
+
+    /// <summary>One upload slot on a per-person requirement.</summary>
+    public record PersonSlot(string Name, RhshfDocumentCategory Category, Guid? DirectorId, Guid? ManagementStaffId,
+        IReadOnlyList<RhshfDocumentFormat>? AllowedFormats);
+
+    /// <summary>
+    /// The people a per-person requirement asks for a file from. The Chief Promoter's CV normally
+    /// has no slot of its own — it is the CV on that person's row — so it only renders one when the
+    /// matching per-person CV requirement is switched off and the promoter would otherwise have
+    /// nowhere to upload it.
+    /// </summary>
+    public IReadOnlyList<PersonSlot> PeopleFor(RhshfDocumentRequirementStatusDto req)
+    {
+        if (Session is null) return [];
+        var managers = Session.ManagementStaff ?? [];
+        var formatsFor = (RhshfDocumentCategory c) =>
+            Session.DocumentRequirements.FirstOrDefault(r => r.Category == c)?.AllowedFormats ?? req.AllowedFormats;
+
+        switch (req.AppliesTo)
+        {
+            case RhshfRequirementAppliesTo.EachDirector:
+                return Session.Directors.Select(d => new PersonSlot(d.FullName, req.Category, d.Id, null, req.AllowedFormats)).ToList();
+            case RhshfRequirementAppliesTo.EachManagementStaff:
+                return managers.Select(m => new PersonSlot(m.FullName, req.Category, null, m.Id, req.AllowedFormats)).ToList();
+            case RhshfRequirementAppliesTo.ChiefPromoter:
+                var active = Session.DocumentRequirements.Select(r => r.Category).ToHashSet();
+                if (Session.Directors.FirstOrDefault(d => d.IsChiefPromoter) is { } pd
+                    && !active.Contains(RhshfDocumentCategory.DirectorCv))
+                    return [new PersonSlot(pd.FullName, RhshfDocumentCategory.DirectorCv, pd.Id, null, formatsFor(RhshfDocumentCategory.DirectorCv))];
+                if (managers.FirstOrDefault(m => m.IsChiefPromoter) is { } pm
+                    && !active.Contains(RhshfDocumentCategory.ManagementCv))
+                    return [new PersonSlot(pm.FullName, RhshfDocumentCategory.ManagementCv, null, pm.Id, formatsFor(RhshfDocumentCategory.ManagementCv))];
+                return [];
+            default:
+                return [];
+        }
     }
 
     private async Task<bool> LoadSessionAsync(string reference, CancellationToken ct)

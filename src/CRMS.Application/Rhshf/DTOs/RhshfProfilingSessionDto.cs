@@ -58,7 +58,18 @@ public record RhshfProfilingSessionDto(
     /// what to fix, not just reopen.</summary>
     string? ReturnReason = null,
     DateTime? ReturnedAt = null,
-    bool IsReturned = false);
+    bool IsReturned = false,
+    /// <summary>Management staff the FAC declares (BOA requirement, 2026-11-25).</summary>
+    List<RhshfProfilingManagementStaffDto>? ManagementStaff = null,
+    /// <summary>Which director/management items are mandatory, keyed by <see cref="RhshfProfilingFieldKey"/>
+    /// name — drives the "required" marks on the form.</summary>
+    IReadOnlyDictionary<string, bool>? FieldMandatory = null,
+    /// <summary>Everything still stopping submission, each named as the FAC saw it on the form. The
+    /// same list the server gate refuses on, so the page can say it before the FAC presses submit.</summary>
+    List<string>? SubmissionGaps = null);
+
+public record RhshfProfilingManagementStaffDto(
+    Guid Id, string FullName, string Position, string? PhoneNumber, string? Email, bool IsChiefPromoter);
 
 public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeBytes, DateTime UploadedAt)
 {
@@ -80,6 +91,16 @@ public record RhshfSupportingDocumentDto(Guid Id, string FileName, long SizeByte
     public DateTime? OriginalUploadedAt { get; init; }
 
     public bool IsReused => ReusedFromReference is not null;
+
+    /// <summary>The director or manager a per-person document belongs to; null for the company's.</summary>
+    public Guid? DirectorId { get; init; }
+    public Guid? ManagementStaffId { get; init; }
+    public string? PersonName { get; init; }
+
+    public RhshfDocumentVerificationStatus VerificationStatus { get; init; } = RhshfDocumentVerificationStatus.Pending;
+    /// <summary>Shown to the FAC on a returned case, so they know what to replace.</summary>
+    public string? RejectionReason { get; init; }
+    public DateTime? VerifiedAt { get; init; }
 }
 
 public record RhshfDocumentRequirementStatusDto(
@@ -88,7 +109,10 @@ public record RhshfDocumentRequirementStatusDto(
     /// <summary>Formats this slot accepts; empty means anything. Shown on the form so the FAC
     /// learns the rule before choosing a file rather than from a rejection afterwards.</summary>
     IReadOnlyList<RhshfDocumentFormat>? AllowedFormats = null,
-    bool MustMatchFinancialTemplate = false);
+    bool MustMatchFinancialTemplate = false,
+    /// <summary>Case: one slot. EachDirector / EachManagementStaff: one slot per person, uploaded
+    /// with that person's id. ChiefPromoter: no slot of its own, met by the promoter's CV.</summary>
+    RhshfRequirementAppliesTo AppliesTo = RhshfRequirementAppliesTo.Case);
 
 /// <summary>A document from one of this FAC's earlier cases, offered for carry-over on the documents
 /// stage. The source reference, session and status are shown so the FAC can tell which document it
@@ -101,8 +125,14 @@ public record RhshfProfilingFarmPlanDto(
     Guid Id, string Crop, decimal Hectares, decimal ExpectedYieldKgPerHectare,
     decimal ExpectedPricePerKg, decimal ExpectedOutputKg, decimal ExpectedRevenue);
 
+/// <summary>BVN and NIN are presence-only and the ID number is masked (on a NIN slip it is the NIN).
+/// Phone, email, ID type and expiry are the FAC's own entries,
+/// returned so the edit form can show them.</summary>
 public record RhshfProfilingDirectorDto(
-    Guid Id, string FullName, bool HasBvn, decimal? ShareholdingPercent, bool IsChairman);
+    Guid Id, string FullName, bool HasBvn, decimal? ShareholdingPercent, bool IsChairman,
+    bool HasNin = false, string? PhoneNumber = null, string? Email = null,
+    RhshfMeansOfIdType? MeansOfIdType = null, string? MeansOfIdNumber = null, DateTime? MeansOfIdExpiry = null,
+    bool IsChiefPromoter = false);
 
 public record RhshfProfilingGuarantorDto(
     Guid Id, string FullName, RhshfGuarantorType GuarantorType, bool HasBvn, string? RcNumber,

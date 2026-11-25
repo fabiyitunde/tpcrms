@@ -19,12 +19,15 @@ public class AppraiseRhshfCaseHandler : IRequestHandler<AppraiseRhshfCaseCommand
     private readonly IUnitOfWork _uow;
     private readonly IRhshfReasonCodeRepository? _reasonCodes;
     private readonly IRhshfCollateralRepository? _collateral;
+    private readonly IRhshfDocumentRequirementRepository? _documentRequirements;
 
     public AppraiseRhshfCaseHandler(IRhshfCreditProfileRepository repo, IUnitOfWork uow,
         IRhshfReasonCodeRepository? reasonCodes = null,
-        IRhshfCollateralRepository? collateral = null)
+        IRhshfCollateralRepository? collateral = null,
+        IRhshfDocumentRequirementRepository? documentRequirements = null)
     {
         _collateral = collateral;
+        _documentRequirements = documentRequirements;
         _repo = repo;
         _uow = uow;
         _reasonCodes = reasonCodes;
@@ -46,7 +49,14 @@ public class AppraiseRhshfCaseHandler : IRequestHandler<AppraiseRhshfCaseCommand
             reasonCode = reason.Value;
         }
 
-        var result = profile.Appraise(request.CreditOfficerId, request.Outcome, request.Notes, request.ReturnToStage, reasonCode);
+        // Proceed is gated on the FAC's documents having been verified; which ones are mandatory is
+        // the admin's setting.
+        var documentRequirements = request.Outcome == RhshfAppraisalOutcome.Proceed && _documentRequirements is not null
+            ? await _documentRequirements.GetActiveAsync(ct)
+            : null;
+
+        var result = profile.Appraise(request.CreditOfficerId, request.Outcome, request.Notes, request.ReturnToStage, reasonCode,
+            documentRequirements);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

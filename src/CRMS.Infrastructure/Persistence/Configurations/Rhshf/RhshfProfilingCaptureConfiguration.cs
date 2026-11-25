@@ -67,3 +67,21 @@ public class RhshfStatusHistoryConfiguration : IEntityTypeConfiguration<RhshfSta
         builder.HasIndex(x => new { x.RhshfCreditProfileId, x.ChangedAt });
     }
 }
+
+public class RhshfProfilingFieldRequirementConfiguration : IEntityTypeConfiguration<RhshfProfilingFieldRequirement>
+{
+    public void Configure(EntityTypeBuilder<RhshfProfilingFieldRequirement> builder)
+    {
+        builder.ToTable("RhshfProfilingFieldRequirements");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.Key).IsRequired().HasConversion<string>().HasMaxLength(50);
+        builder.Property(x => x.Title).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.Description).HasMaxLength(1000);
+
+        builder.Property(x => x.CreatedBy).HasMaxLength(100);
+        builder.Property(x => x.ModifiedBy).HasMaxLength(100);
+
+        builder.HasIndex(x => x.Key).IsUnique();
+    }
+}

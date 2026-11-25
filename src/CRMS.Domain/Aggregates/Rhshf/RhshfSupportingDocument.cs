@@ -41,11 +41,28 @@ public class RhshfSupportingDocument : Entity
 
     public bool IsReused => ReusedFromDocumentId.HasValue;
 
+    // ── Person this document belongs to (per-person requirements only) ────
+    /// <summary>Set on a director's CV or ID. Null on a case-level document.</summary>
+    public Guid? DirectorId { get; private set; }
+    /// <summary>Set on a management staff member's CV. Null otherwise.</summary>
+    public Guid? ManagementStaffId { get; private set; }
+
+    public bool IsPersonal => DirectorId.HasValue || ManagementStaffId.HasValue;
+
+    // ── Reviewer's check ───────────────────────────────────────────────────
+    /// <summary>Rows that predate verification read back as Pending (the column default), so an
+    /// officer checks them like any new upload.</summary>
+    public RhshfDocumentVerificationStatus VerificationStatus { get; private set; } = RhshfDocumentVerificationStatus.Pending;
+    public Guid? VerifiedByUserId { get; private set; }
+    public DateTime? VerifiedAt { get; private set; }
+    public string? RejectionReason { get; private set; }
+
     protected RhshfSupportingDocument() { }
 
     public RhshfSupportingDocument(
         Guid rhshfCreditProfileId, RhshfDocumentCategory category,
-        string fileName, string contentType, string storagePath, long sizeBytes)
+        string fileName, string contentType, string storagePath, long sizeBytes,
+        Guid? directorId = null, Guid? managementStaffId = null)
     {
         RhshfCreditProfileId = rhshfCreditProfileId;
         Category = category;
@@ -54,6 +71,39 @@ public class RhshfSupportingDocument : Entity
         StoragePath = storagePath;
         SizeBytes = sizeBytes;
         UploadedAt = DateTime.UtcNow;
+        DirectorId = directorId;
+        ManagementStaffId = managementStaffId;
+    }
+
+    /// <summary>Whether this document fills the slot for <paramref name="category"/> and person.</summary>
+    public bool FillsSlot(RhshfDocumentCategory category, Guid? directorId, Guid? managementStaffId) =>
+        Category == category && DirectorId == directorId && ManagementStaffId == managementStaffId;
+
+    public Result Verify(Guid userId)
+    {
+        if (VerificationStatus == RhshfDocumentVerificationStatus.Verified)
+            return Result.Failure("This document has already been verified.");
+
+        VerificationStatus = RhshfDocumentVerificationStatus.Verified;
+        VerifiedByUserId = userId;
+        VerifiedAt = DateTime.UtcNow;
+        RejectionReason = null;
+        return Result.Success();
+    }
+
+    /// <summary>The reason is shown to the FAC when the case is returned, so it is required.</summary>
+    public Result Reject(Guid userId, string reason)
+    {
+        if (string.IsNullOrWhiteSpace(reason))
+            return Result.Failure("Give a reason for rejecting the document. The FAC will see it.");
+        if (reason.Trim().Length > 1000)
+            return Result.Failure("The reason is too long.");
+
+        VerificationStatus = RhshfDocumentVerificationStatus.Rejected;
+        VerifiedByUserId = userId;
+        VerifiedAt = DateTime.UtcNow;
+        RejectionReason = reason.Trim();
+        return Result.Success();
     }
 
     /// <summary>Records that this document was carried over from <paramref name="sourceDocumentId"/>

@@ -3,6 +3,7 @@ using CRMS.Application.Billing;
 using CRMS.Domain.Aggregates.Billing;
 using CRMS.Application.Common;
 using CRMS.Domain.Aggregates.Rhshf;
+using CRMS.Domain.Enums;
 using CRMS.Domain.Interfaces;
 
 namespace CRMS.Application.Rhshf.Commands;
@@ -109,7 +110,9 @@ public class FetchRhshfCacDetailsHandler : IRequestHandler<FetchRhshfCacDetailsC
 
 public record AddRhshfDirectorCommand(
     string Reference, string FullName, string? Bvn, decimal? ShareholdingPercent,
-    bool IsChairman, string? Email, string? PhoneNumber, Guid UserId) : IRequest<ApplicationResult>;
+    bool IsChairman, string? Email, string? PhoneNumber, Guid UserId,
+    string? Nin = null, RhshfMeansOfIdType? MeansOfIdType = null, string? MeansOfIdNumber = null,
+    DateTime? MeansOfIdExpiry = null) : IRequest<ApplicationResult>;
 
 public class AddRhshfDirectorHandler : IRequestHandler<AddRhshfDirectorCommand, ApplicationResult>
 {
@@ -136,6 +139,11 @@ public class AddRhshfDirectorHandler : IRequestHandler<AddRhshfDirectorCommand, 
             request.IsChairman, request.Email, request.PhoneNumber, declaredByFac);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
+
+        var identity = RhshfProfilingPeople.ApplyIdentity(result.Value, request.Nin, request.PhoneNumber, request.Email,
+            request.MeansOfIdType, request.MeansOfIdNumber, request.MeansOfIdExpiry);
+        if (identity.IsFailure)
+            return ApplicationResult.Failure(identity.Error);
 
         // Capped against the case's total, not just 0-100 on this one row: 60% + 50% was accepted
         // before, because a director cannot see its siblings' holdings.

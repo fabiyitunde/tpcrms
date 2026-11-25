@@ -35,6 +35,10 @@ public class RhshfDirectorConfiguration : IEntityTypeConfiguration<RhshfDirector
 
         builder.Property(x => x.Bvn).HasMaxLength(20);
         builder.Property(x => x.IdentityNumber).HasMaxLength(50);
+        builder.Property(x => x.Nin).HasMaxLength(20);
+        builder.Property(x => x.MeansOfIdType).HasConversion<string>().HasMaxLength(40);
+        builder.Property(x => x.MeansOfIdNumber).HasMaxLength(50);
+        builder.Ignore(x => x.HasMeansOfId);
 
         builder.Property(x => x.CreatedBy).HasMaxLength(100);
         builder.Property(x => x.ModifiedBy).HasMaxLength(100);
@@ -42,5 +46,24 @@ public class RhshfDirectorConfiguration : IEntityTypeConfiguration<RhshfDirector
         builder.HasIndex(x => x.RhshfCreditProfileId);
         // Bureau subject lists are built by filtering on BVN presence — index it.
         builder.HasIndex(x => x.Bvn);
+    }
+}
+
+public class RhshfManagementStaffConfiguration : IEntityTypeConfiguration<RhshfManagementStaff>
+{
+    public void Configure(EntityTypeBuilder<RhshfManagementStaff> builder)
+    {
+        builder.ToTable("RhshfManagementStaff");
+        builder.HasKey(x => x.Id);
+
+        builder.Property(x => x.FullName).IsRequired().HasMaxLength(300);
+        builder.Property(x => x.Position).IsRequired().HasMaxLength(150);
+        builder.Property(x => x.PhoneNumber).HasMaxLength(30);
+        builder.Property(x => x.Email).HasMaxLength(200);
+
+        builder.Property(x => x.CreatedBy).HasMaxLength(100);
+        builder.Property(x => x.ModifiedBy).HasMaxLength(100);
+
+        builder.HasIndex(x => x.RhshfCreditProfileId);
     }
 }

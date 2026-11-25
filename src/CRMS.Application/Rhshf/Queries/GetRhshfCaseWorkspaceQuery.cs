@@ -81,7 +81,14 @@ public class GetRhshfCaseWorkspaceHandler : IRequestHandler<GetRhshfCaseWorkspac
             BureauTotalOverdue: profile.BureauTotalOverdue,
             BureauRawJson: profile.BureauRawJson,
             SupportingDocuments: profile.SupportingDocuments
-                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt) { Category = d.Category, ReusedFromReference = d.ReusedFromReference, OriginalUploadedAt = d.OriginalUploadedAt }).ToList(),
+                .Select(d => new RhshfSupportingDocumentDto(d.Id, d.FileName, d.SizeBytes, d.UploadedAt)
+                {
+                    Category = d.Category, ReusedFromReference = d.ReusedFromReference, OriginalUploadedAt = d.OriginalUploadedAt,
+                    DirectorId = d.DirectorId, ManagementStaffId = d.ManagementStaffId,
+                    PersonName = profile.Directors.FirstOrDefault(p => p.Id == d.DirectorId)?.FullName
+                        ?? profile.ManagementStaff.FirstOrDefault(p => p.Id == d.ManagementStaffId)?.FullName,
+                    VerificationStatus = d.VerificationStatus, RejectionReason = d.RejectionReason, VerifiedAt = d.VerifiedAt,
+                }).ToList(),
             Appraisals: profile.Appraisals
                 .Select(a => new RhshfAppraisalDto(a.CycleNumber, a.CreditOfficerId, Name(a.CreditOfficerId), a.AppraisedAt, a.Outcome, a.Notes)).ToList(),
             RiskReviews: profile.RiskReviews

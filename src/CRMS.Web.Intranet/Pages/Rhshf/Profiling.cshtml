@@ -178,7 +178,10 @@ else
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Company directors</h5>
-                        <p class="text-muted small">We run a credit-bureau check on each director, so every director must be listed with their <strong>BVN</strong> (required before you can submit). You can pull them from your Bank of Agriculture account record, then confirm.</p>
+                        <p class="text-muted small">We run a credit-bureau check on each director, so every director must be listed with their <strong>BVN</strong> (required before you can submit). You can pull them from your Bank of Agriculture account record, then confirm.
+                            The bank also asks for each director's
+                            @(Model.IsRequired(RhshfProfilingFieldKey.DirectorNin) ? "NIN, " : "")@(Model.IsRequired(RhshfProfilingFieldKey.DirectorPhone) ? "telephone number, " : "")@(Model.IsRequired(RhshfProfilingFieldKey.DirectorMeansOfId) ? "a valid means of identification, " : "")and for one person to be named <strong>Chief Promoter</strong>.
+                            Use <em>Details</em> on each row to fill these in.</p>
 
                         <form method="post" asp-page-handler="PullDirectors" class="mb-3">
                             <input type="hidden" name="reference" value="@Model.Session.Reference" />
@@ -188,12 +191,14 @@ else
                         @if (Model.Session.Directors.Count > 0)
                         {
                             <table class="table table-sm align-middle">
-                                <thead><tr><th>Name</th><th>BVN</th><th class="text-end">Shareholding</th><th></th></tr></thead>
+                                <thead><tr><th>Name</th><th>BVN</th><th>NIN, phone and ID</th><th class="text-end">Shareholding</th><th></th></tr></thead>
                                 <tbody>
                                 @foreach (var d in Model.Session.Directors)
                                 {
+                                    var idExpired = d.MeansOfIdExpiry is { } exp && exp.Date < DateTime.UtcNow.Date;
                                     <tr>
-                                        <td>@d.FullName @if (d.IsChairman) { <span class="badge bg-secondary ms-1">Chairman</span> }</td>
+                                        <td>@d.FullName @if (d.IsChairman) { <span class="badge bg-secondary ms-1">Chairman</span> }
+                                            @if (d.IsChiefPromoter) { <span class="badge bg-primary ms-1">Chief Promoter</span> }</td>
                                         <td>
                                             @if (d.HasBvn)
                                             {
@@ -208,6 +213,18 @@ else
                                                     <input name="bvn" maxlength="11" pattern="\d{11}" title="11 digits" required class="form-control form-control-sm" style="max-width: 130px;" placeholder="Add BVN (11 digits)" />
                                                     <button type="submit" class="btn btn-sm btn-outline-success">Save</button>
                                                 </form>
+                                            }
+                                        </td>
+                                        <td class="small">
+                                            <span class="badge @(d.HasNin ? "bg-success" : Model.IsRequired(RhshfProfilingFieldKey.DirectorNin) ? "bg-warning text-dark" : "bg-light text-dark")">NIN @(d.HasNin ? "provided" : "missing")</span>
+                                            <span class="badge @(!string.IsNullOrWhiteSpace(d.PhoneNumber) ? "bg-success" : Model.IsRequired(RhshfProfilingFieldKey.DirectorPhone) ? "bg-warning text-dark" : "bg-light text-dark")">Phone @(!string.IsNullOrWhiteSpace(d.PhoneNumber) ? "provided" : "missing")</span>
+                                            @if (d.MeansOfIdType is { } idType)
+                                            {
+                                                <span class="badge @(idExpired ? "bg-danger" : "bg-success")">@ProfilingModel.IdTypeLabel(idType)@(idExpired ? " expired" : "")</span>
+                                            }
+                                            else
+                                            {
+                                                <span class="badge @(Model.IsRequired(RhshfProfilingFieldKey.DirectorMeansOfId) ? "bg-warning text-dark" : "bg-light text-dark")">ID missing</span>
                                             }
                                         </td>
                                         @* Editable, not read-only. There was no way to correct a mistyped percentage:
@@ -233,6 +250,63 @@ else
                                                 <input type="hidden" name="directorId" value="@d.Id" />
                                                 <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
                                             </form>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-top-0">
+                                        <td colspan="5" class="pt-0">
+                                            @* A <details> rather than a modal: this page is plain Razor Pages and works with
+                                               scripts off. Opened by default while anything required is still missing. *@
+                                            <details open="@(Model.DirectorNeedsDetails(d) ? "open" : null)">
+                                                <summary class="small text-primary">Details for @d.FullName</summary>
+                                                <form method="post" asp-page-handler="UpdateDirectorIdentity" class="row g-2 align-items-end mt-1">
+                                                    <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                    <input type="hidden" name="directorId" value="@d.Id" />
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">NIN @if (Model.IsRequired(RhshfProfilingFieldKey.DirectorNin)) { <span class="text-danger">*</span> }</label>
+                                                        @* Never echoed back: blank keeps the NIN on file. *@
+                                                        <input name="nin" maxlength="11" pattern="\d{11}" title="11 digits" class="form-control form-control-sm"
+                                                               placeholder="@(d.HasNin ? "On file. Leave blank to keep" : "11 digits")" autocomplete="off" />
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">Telephone @if (Model.IsRequired(RhshfProfilingFieldKey.DirectorPhone)) { <span class="text-danger">*</span> }</label>
+                                                        <input name="phoneNumber" type="tel" maxlength="30" value="@d.PhoneNumber" class="form-control form-control-sm" />
+                                                    </div>
+                                                    <div class="col-md-6">
+                                                        <label class="form-label small mb-0">Email</label>
+                                                        <input name="email" type="email" maxlength="200" value="@d.Email" class="form-control form-control-sm" />
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">Means of identification @if (Model.IsRequired(RhshfProfilingFieldKey.DirectorMeansOfId)) { <span class="text-danger">*</span> }</label>
+                                                        <select name="meansOfIdType" class="form-select form-select-sm">
+                                                            <option value="">Choose…</option>
+                                                            @foreach (var t in Enum.GetValues<RhshfMeansOfIdType>())
+                                                            {
+                                                                <option value="@t" selected="@(d.MeansOfIdType == t)">@ProfilingModel.IdTypeLabel(t)</option>
+                                                            }
+                                                        </select>
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">ID number</label>
+                                                        <input name="meansOfIdNumber" maxlength="50" class="form-control form-control-sm" autocomplete="off"
+                                                               placeholder="@(d.MeansOfIdNumber is null ? "" : $"{d.MeansOfIdNumber}. Leave blank to keep")" />
+                                                    </div>
+                                                    <div class="col-md-3">
+                                                        <label class="form-label small mb-0">Expiry date</label>
+                                                        <input name="meansOfIdExpiry" type="date" value="@(d.MeansOfIdExpiry?.ToString("yyyy-MM-dd"))" class="form-control form-control-sm"
+                                                               title="Required for a passport or driver's licence" />
+                                                        @if (idExpired) { <div class="text-danger small">This ID has expired. Add a valid one.</div> }
+                                                    </div>
+                                                    <div class="col-md-3"><button type="submit" class="btn btn-sm btn-success w-100">Save details</button></div>
+                                                </form>
+                                                @if (!d.IsChiefPromoter)
+                                                {
+                                                    <form method="post" asp-page-handler="SetChiefPromoter" class="mt-2">
+                                                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                        <input type="hidden" name="personId" value="@d.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Name @d.FullName as Chief Promoter</button>
+                                                    </form>
+                                                }
+                                            </details>
                                         </td>
                                     </tr>
                                 }
@@ -294,9 +368,120 @@ else
                                        class="form-control form-control-sm"
                                        title="At most @Model.Session.RemainingShareholding.ToString("0.##")% is unallocated" />
                             </div>
-                            <div class="col-md-2"><div class="form-check mt-3"><input type="checkbox" name="isChairman" value="true" class="form-check-input" id="chairCheck" /><label class="form-check-label small" for="chairCheck">Chairman</label></div></div>
+                            <div class="col-md-3"><div class="form-check mt-3"><input type="checkbox" name="isChairman" value="true" class="form-check-input" id="chairCheck" /><label class="form-check-label small" for="chairCheck">Chairman</label></div></div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">NIN @if (Model.IsRequired(RhshfProfilingFieldKey.DirectorNin)) { <span class="text-danger">*</span> }</label>
+                                <input name="nin" maxlength="11" pattern="\d{11}" title="11 digits" class="form-control form-control-sm" placeholder="11 digits" autocomplete="off" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Telephone @if (Model.IsRequired(RhshfProfilingFieldKey.DirectorPhone)) { <span class="text-danger">*</span> }</label>
+                                <input name="phoneNumber" type="tel" maxlength="30" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Email</label>
+                                <input name="email" type="email" maxlength="200" class="form-control form-control-sm" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">Means of identification</label>
+                                <select name="meansOfIdType" class="form-select form-select-sm">
+                                    <option value="">Choose…</option>
+                                    @foreach (var t in Enum.GetValues<RhshfMeansOfIdType>())
+                                    {
+                                        <option value="@t">@ProfilingModel.IdTypeLabel(t)</option>
+                                    }
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">ID number</label>
+                                <input name="meansOfIdNumber" maxlength="50" class="form-control form-control-sm" autocomplete="off" />
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small mb-0">ID expiry date</label>
+                                <input name="meansOfIdExpiry" type="date" class="form-control form-control-sm" title="Required for a passport or driver's licence" />
+                            </div>
+                            <div class="col-md-3"><button type="submit" class="btn btn-sm btn-success w-100">Add director</button></div>
+                        </form>
+
+                        <hr class="my-4" />
+                        <h5 class="mb-1">Management staff</h5>
+                        <p class="text-muted small">List the people who run the company day to day, with their position and telephone number. You will upload each person's CV on the documents step.
+                            @if (Model.IsRequired(RhshfProfilingFieldKey.ManagementStaffRequired)) { <strong>At least one is required.</strong> }</p>
+
+                        var managers = Model.Session.ManagementStaff ?? [];
+                        @if (managers.Count > 0)
+                        {
+                            <table class="table table-sm align-middle">
+                                <thead><tr><th>Name</th><th>Position</th><th>Telephone</th><th>Email</th><th></th></tr></thead>
+                                <tbody>
+                                @foreach (var m in managers)
+                                {
+                                    <tr>
+                                        <td>@m.FullName @if (m.IsChiefPromoter) { <span class="badge bg-primary ms-1">Chief Promoter</span> }</td>
+                                        <td>@m.Position</td>
+                                        <td>@(m.PhoneNumber ?? "") @if (string.IsNullOrWhiteSpace(m.PhoneNumber) && Model.IsRequired(RhshfProfilingFieldKey.ManagementPhone)) { <span class="badge bg-warning text-dark">Phone missing</span> }</td>
+                                        <td class="small">@m.Email</td>
+                                        <td class="text-end">
+                                            <form method="post" asp-page-handler="RemoveManagementStaff" onsubmit="return confirm('Remove this person? Their CV is removed too.');">
+                                                <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                <input type="hidden" name="staffId" value="@m.Id" />
+                                                <button type="submit" class="btn btn-sm btn-outline-danger">Remove</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    <tr class="border-top-0">
+                                        <td colspan="5" class="pt-0">
+                                            <details>
+                                                <summary class="small text-primary">Edit @m.FullName</summary>
+                                                <form method="post" asp-page-handler="UpdateManagementStaff" class="row g-2 align-items-end mt-1">
+                                                    <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                    <input type="hidden" name="staffId" value="@m.Id" />
+                                                    <div class="col-md-3"><label class="form-label small mb-0">Full name</label><input name="fullName" value="@m.FullName" maxlength="300" required class="form-control form-control-sm" /></div>
+                                                    <div class="col-md-3"><label class="form-label small mb-0">Position</label><input name="position" value="@m.Position" maxlength="150" required class="form-control form-control-sm" /></div>
+                                                    <div class="col-md-2"><label class="form-label small mb-0">Telephone</label><input name="phoneNumber" type="tel" value="@m.PhoneNumber" maxlength="30" class="form-control form-control-sm" /></div>
+                                                    <div class="col-md-3"><label class="form-label small mb-0">Email</label><input name="email" type="email" value="@m.Email" maxlength="200" class="form-control form-control-sm" /></div>
+                                                    <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Save</button></div>
+                                                </form>
+                                                @if (!m.IsChiefPromoter)
+                                                {
+                                                    <form method="post" asp-page-handler="SetChiefPromoter" class="mt-2">
+                                                        <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                        <input type="hidden" name="personId" value="@m.Id" />
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Name @m.FullName as Chief Promoter</button>
+                                                    </form>
+                                                }
+                                            </details>
+                                        </td>
+                                    </tr>
+                                }
+                                </tbody>
+                            </table>
+                        }
+                        else
+                        {
+                            <p class="text-muted small fst-italic">No management staff added yet.</p>
+                        }
+
+                        <form method="post" asp-page-handler="AddManagementStaff" class="row g-2 align-items-end mb-2">
+                            <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                            <div class="col-md-3"><label class="form-label small mb-0">Full name</label><input name="fullName" maxlength="300" required class="form-control form-control-sm" /></div>
+                            <div class="col-md-3"><label class="form-label small mb-0">Position</label><input name="position" maxlength="150" required class="form-control form-control-sm" placeholder="e.g. General Manager" /></div>
+                            <div class="col-md-2"><label class="form-label small mb-0">Telephone @if (Model.IsRequired(RhshfProfilingFieldKey.ManagementPhone)) { <span class="text-danger">*</span> }</label><input name="phoneNumber" type="tel" maxlength="30" class="form-control form-control-sm" /></div>
+                            <div class="col-md-3"><label class="form-label small mb-0">Email</label><input name="email" type="email" maxlength="200" class="form-control form-control-sm" /></div>
                             <div class="col-md-1"><button type="submit" class="btn btn-sm btn-success w-100">Add</button></div>
                         </form>
+
+                        var promoter = Model.Session.Directors.FirstOrDefault(d => d.IsChiefPromoter)?.FullName
+                            ?? managers.FirstOrDefault(m => m.IsChiefPromoter)?.FullName;
+                        <div class="alert @(promoter is null && Model.IsRequired(RhshfProfilingFieldKey.ChiefPromoterDesignated) ? "alert-warning" : "alert-secondary") py-2 small mt-3">
+                            @if (promoter is null)
+                            {
+                                <span><strong>Chief Promoter:</strong> not named yet. Open <em>Details</em> on a director, or <em>Edit</em> on a member of management, and choose <em>Name as Chief Promoter</em>.</span>
+                            }
+                            else
+                            {
+                                <span><strong>Chief Promoter:</strong> @promoter. Their CV, uploaded on the documents step, is the Chief Promoter's CV.</span>
+                            }
+                        </div>
 
                         <hr class="my-4" />
                         <h5 class="mb-1">Guarantors</h5>
@@ -824,8 +1009,38 @@ else
                                             </div>
                                         }
                                     </td>
+                                    @if (req.AppliesTo != RhshfRequirementAppliesTo.Case)
+                                    {
+                                        @* Per-person slots render one row per director or manager below; the Chief
+                                           Promoter's CV has no slot of its own, it is that person's CV. *@
+                                        <td>
+                                            <span class="badge @(req.IsSatisfied ? "bg-success" : "bg-light text-dark border")">@(req.IsSatisfied ? "Complete" : "Incomplete")</span>
+                                        </td>
+                                        <td class="text-end small text-muted">
+                                            @if (req.AppliesTo == RhshfRequirementAppliesTo.ChiefPromoter)
+                                            {
+                                                var promoterName = Model.Session.Directors.FirstOrDefault(d => d.IsChiefPromoter)?.FullName
+                                                    ?? (Model.Session.ManagementStaff ?? []).FirstOrDefault(m => m.IsChiefPromoter)?.FullName;
+                                                @(promoterName is null
+                                                    ? "Name a Chief Promoter on the credit bureau step first."
+                                                    : $"Upload {promoterName}'s CV on their row.")
+                                            }
+                                            else
+                                            {
+                                                <span>One per @(req.AppliesTo == RhshfRequirementAppliesTo.EachDirector ? "director" : "member of management"), below.</span>
+                                            }
+                                        </td>
+                                    }
+                                    else
+                                    {
                                     <td>
-                                        @if (req.IsSatisfied)
+                                        @{ var caseDoc = Model.Session.SupportingDocuments.FirstOrDefault(doc => doc.Category == req.Category && doc.DirectorId is null && doc.ManagementStaffId is null); }
+                                        @if (caseDoc?.VerificationStatus == RhshfDocumentVerificationStatus.Rejected)
+                                        {
+                                            <span class="badge bg-danger">Rejected</span>
+                                            <div class="small text-danger">@caseDoc.RejectionReason</div>
+                                        }
+                                        else if (req.IsSatisfied)
                                         {
                                             <span class="badge bg-success">@req.AttachedCount attached</span>
                                         }
@@ -893,7 +1108,50 @@ else
                                             </details>
                                         }
                                     </td>
+                                    }
                                 </tr>
+                                @if (req.AppliesTo != RhshfRequirementAppliesTo.Case)
+                                {
+                                    var people = Model.PeopleFor(req);
+                                    foreach (var person in people)
+                                    {
+                                        var held = Model.Session.SupportingDocuments.FirstOrDefault(doc => doc.Category == person.Category
+                                            && doc.DirectorId == person.DirectorId && doc.ManagementStaffId == person.ManagementStaffId);
+                                        <tr class="table-light">
+                                            <td class="ps-4 small">@person.Name</td>
+                                            <td>
+                                                @if (held is null)
+                                                {
+                                                    <span class="badge bg-light text-dark border">Not attached</span>
+                                                }
+                                                else if (held.VerificationStatus == RhshfDocumentVerificationStatus.Rejected)
+                                                {
+                                                    <span class="badge bg-danger">Rejected</span>
+                                                    <div class="small text-danger">@held.RejectionReason</div>
+                                                }
+                                                else
+                                                {
+                                                    <span class="badge bg-success">Attached</span>
+                                                }
+                                            </td>
+                                            <td class="text-end" style="min-width: 320px;">
+                                                <form method="post" asp-page-handler="Upload" enctype="multipart/form-data" class="d-flex gap-2 justify-content-end">
+                                                    <input type="hidden" name="reference" value="@Model.Session.Reference" />
+                                                    <input type="hidden" name="category" value="@person.Category" />
+                                                    @if (person.DirectorId is { } did) { <input type="hidden" name="directorId" value="@did" /> }
+                                                    @if (person.ManagementStaffId is { } mid) { <input type="hidden" name="managementStaffId" value="@mid" /> }
+                                                    <input type="file" name="file" class="form-control form-control-sm" required
+                                                           accept="@RhshfDisplayNames.AcceptAttribute(person.AllowedFormats)" />
+                                                    <button type="submit" class="btn btn-sm btn-outline-success text-nowrap">Upload</button>
+                                                </form>
+                                                <div class="small text-muted mt-1 text-end">
+                                                    @if (person.AllowedFormats is { Count: > 0 }) { @RhshfDisplayNames.AcceptedFormatsText(person.AllowedFormats) }
+                                                    <span>Up to @CRMS.Application.Rhshf.Commands.UploadRhshfSupportingDocumentHandler.MaxSizeText(person.Category).</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    }
+                                }
                             }
                             </tbody>
                         </table>
@@ -913,10 +1171,23 @@ else
                                                 @(Model.Session.DocumentRequirements.FirstOrDefault(r => r.Category == doc.Category)?.Title
                                                   ?? RhshfDisplayNames.CategoryLabel(doc.Category))
                                             </span>
+                                            @if (doc.PersonName is not null)
+                                            {
+                                                <span class="small text-muted ms-1">@doc.PersonName</span>
+                                            }
                                             @if (doc.IsReused)
                                             {
                                                 <span class="badge bg-info-subtle text-info-emphasis border ms-1"
                                                       title="Carried over from @doc.ReusedFromReference">re-used</span>
+                                            }
+                                            @if (doc.VerificationStatus == RhshfDocumentVerificationStatus.Rejected)
+                                            {
+                                                <span class="badge bg-danger ms-1">Rejected by the bank</span>
+                                                <span class="d-block small text-danger">@doc.RejectionReason Upload a replacement in its slot above.</span>
+                                            }
+                                            else if (doc.VerificationStatus == RhshfDocumentVerificationStatus.Verified)
+                                            {
+                                                <span class="badge bg-success-subtle text-success-emphasis border ms-1">Checked by the bank</span>
                                             }
                                         </span>
                                         <span class="d-flex gap-2 align-items-center">
@@ -965,8 +1236,12 @@ else
                     // each instrument needs its evidence attached for Legal to sight.
                     var noCollateral = Model.Session.Collateral.Count == 0;
                     var undocumentedCollateral = Model.Session.Collateral.Count(c => c.Documents.Count == 0);
+                    // The bank's added requirements (NIN, ID, phones, management, Chief Promoter, CVs,
+                    // company profile, business plan) come pre-evaluated from the same check the
+                    // server applies on submit.
+                    var submissionGaps = Model.Session.SubmissionGaps ?? [];
                     var blockSubmit = missingBvnDirectors > 0 || missingBvnGuarantors > 0
-                        || noCollateral || undocumentedCollateral > 0;
+                        || noCollateral || undocumentedCollateral > 0 || submissionGaps.Count > 0;
 
                     <div class="d-flex justify-content-between align-items-center border-bottom pb-1 mb-2">
                         <h6 class="mb-0">Company</h6>
@@ -1052,6 +1327,20 @@ else
                     <dl class="row mb-4">
                         <dt class="col-sm-4">Documents attached</dt><dd class="col-sm-8">@Model.Session.SupportingDocuments.Count</dd>
                     </dl>
+
+                    @if (submissionGaps.Count > 0)
+                    {
+                        <div class="alert alert-warning small">
+                            <div class="fw-semibold mb-1">Still needed before you can submit:</div>
+                            <ul class="mb-0">
+                                @foreach (var gap in submissionGaps)
+                                {
+                                    <li>@gap</li>
+                                }
+                            </ul>
+                            <div class="mt-1">Directors, management staff and the Chief Promoter are on the <em>credit bureau check</em> step; documents and CVs on the <em>supporting documents</em> step.</div>
+                        </div>
+                    }
 
                     <form method="post" asp-page-handler="Confirm">
                         <input type="hidden" name="reference" value="@Model.Session.Reference" />

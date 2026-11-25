@@ -3,6 +3,7 @@
 @using CRMS.Application.Rhshf.DTOs
 @using CRMS.Domain.Enums
 @inject ApplicationService AppService
+@inject AuthService AuthService
 
 <PageTitle>RH-SHF Document Requirements - CRMS</PageTitle>
 
@@ -61,7 +62,14 @@
                                         <div style="font-size: 0.8rem; color: var(--gray-500);">@r.Description</div>
                                     }
                                 </td>
-                                <td><span class="badge badge-primary">@Humanise(r.Category)</span></td>
+                                <td>
+                                    <span class="badge badge-primary">@Humanise(r.Category)</span>
+                                    @{ var appliesTo = CRMS.Domain.Aggregates.Rhshf.RhshfDocumentRequirement.AppliesToFor(r.Category); }
+                                    @if (appliesTo != RhshfRequirementAppliesTo.Case)
+                                    {
+                                        <div style="font-size: 0.75rem; color: var(--gray-500);">@AppliesToLabel(appliesTo)</div>
+                                    }
+                                </td>
                                 <td><span class="badge @(r.IsMandatory ? "badge-warning" : "badge-gray")">@(r.IsMandatory ? "Mandatory" : "Optional")</span></td>
                                 <td>
                                     @if (r.AllowedFormats is { Count: > 0 })
@@ -87,6 +95,53 @@
                         }
                     </tbody>
                 </table>
+            </div>
+        }
+    </div>
+</div>
+
+@* The non-document items BOA asked for (2026-11-25). Seeded mandatory; BOA said their status was
+   subject to confirmation, so each is a switch here rather than a deploy. *@
+<div class="card" style="margin-top: 1.5rem;">
+    <div class="card-header">
+        <h3 class="card-title">Director and management details</h3>
+    </div>
+    <div class="card-body" style="padding: 0;">
+        @if (!string.IsNullOrEmpty(fieldError))
+        {
+            <div class="alert alert-danger" style="margin: 1rem;">@fieldError</div>
+        }
+        @if (fieldRequirements.Count == 0)
+        {
+            <div class="empty-state"><div class="empty-state-text">Not seeded yet. They are added at the next start-up.</div></div>
+        }
+        else
+        {
+            <table class="table" style="margin-bottom: 0;">
+                <thead><tr><th>Item</th><th>Requirement</th><th></th></tr></thead>
+                <tbody>
+                    @foreach (var f in fieldRequirements)
+                    {
+                        <tr>
+                            <td>
+                                <div style="font-weight: 500;">@f.Title</div>
+                                @if (!string.IsNullOrEmpty(f.Description))
+                                {
+                                    <div style="font-size: 0.8rem; color: var(--gray-500);">@f.Description</div>
+                                }
+                            </td>
+                            <td><span class="badge @(f.IsMandatory ? "badge-warning" : "badge-gray")">@(f.IsMandatory ? "Mandatory" : "Optional")</span></td>
+                            <td style="white-space: nowrap;">
+                                <button class="btn btn-ghost btn-sm" disabled="@isSaving" @onclick="() => ToggleField(f)">
+                                    Make @(f.IsMandatory ? "optional" : "mandatory")
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div style="padding: 0.5rem 1rem; font-size: 0.8rem; color: var(--gray-500);">
+                Checked when the FAC leaves the credit bureau step and again on submit. A director's BVN is always required, because the bureau check runs on it.
             </div>
         }
     </div>
@@ -199,9 +254,36 @@
     {
         isLoading = true;
         pageError = null;
-        try { requirements = await AppService.GetRhshfDocumentRequirementsAsync(); }
+        try
+        {
+            requirements = await AppService.GetRhshfDocumentRequirementsAsync();
+            fieldRequirements = await AppService.GetRhshfProfilingFieldRequirementsAsync();
+        }
         finally { isLoading = false; }
     }
+
+    private List<CRMS.Application.Rhshf.Commands.RhshfProfilingFieldRequirementDto> fieldRequirements = [];
+    private string? fieldError;
+
+    private async Task ToggleField(CRMS.Application.Rhshf.Commands.RhshfProfilingFieldRequirementDto f)
+    {
+        var user = AuthService.CurrentUser;
+        if (user is null) return;
+        isSaving = true;
+        fieldError = null;
+        var result = await AppService.SetRhshfProfilingFieldRequirementAsync(f.Id, !f.IsMandatory, user.Id, user.FullName);
+        isSaving = false;
+        if (!result.Success) { fieldError = result.Error; return; }
+        fieldRequirements = await AppService.GetRhshfProfilingFieldRequirementsAsync();
+    }
+
+    private static string AppliesToLabel(RhshfRequirementAppliesTo appliesTo) => appliesTo switch
+    {
+        RhshfRequirementAppliesTo.EachDirector => "one per director",
+        RhshfRequirementAppliesTo.EachManagementStaff => "one per member of management",
+        RhshfRequirementAppliesTo.ChiefPromoter => "met by the Chief Promoter's CV",
+        _ => "once per case",
+    };
 
     // One rule per category, so only unclaimed categories can be added.
     private List<RhshfDocumentCategory> AvailableCategories() =>

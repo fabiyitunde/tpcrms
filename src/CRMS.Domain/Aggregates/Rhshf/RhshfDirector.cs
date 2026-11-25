@@ -1,4 +1,5 @@
 using CRMS.Domain.Common;
+using CRMS.Domain.Enums;
 
 namespace CRMS.Domain.Aggregates.Rhshf;
 
@@ -54,7 +55,22 @@ public class RhshfDirector : Entity
 
     // ── Identity documents (manually completed) ────────────────────────────
     public string? Bvn { get; private set; }
-    public string? IdentityNumber { get; private set; }
+    public string? IdentityNumber { get; private set; }   // From CAC, whatever ID it holds — not the NIN
+
+    /// <summary>National Identification Number, entered by the FAC. Like the BVN, it never leaves the
+    /// server unmasked except through the audited reveal.</summary>
+    public string? Nin { get; private set; }
+
+    // ── Means of identification (FAC-declared) ────────────────────────────
+    public RhshfMeansOfIdType? MeansOfIdType { get; private set; }
+    public string? MeansOfIdNumber { get; private set; }
+    /// <summary>Required for ID types that expire (see <see cref="TypeExpires"/>); an expired ID is
+    /// not a valid means of identification and blocks submission.</summary>
+    public DateTime? MeansOfIdExpiry { get; private set; }
+
+    /// <summary>The FAC's Chief Promoter. At most one person on a case — director or management
+    /// staff — carries the flag; the profile enforces that.</summary>
+    public bool IsChiefPromoter { get; private set; }
 
     /// <summary>True when this director was declared by the FAC (during profiling, incl. its own
     /// core-banking pull). Staff may not delete these — only CAC/stale rows and their own manual
@@ -187,6 +203,65 @@ public class RhshfDirector : Entity
         PhoneNumber = phoneNumber;
         return Result.Success();
     }
+
+    public Result UpdateNin(string? nin)
+    {
+        var digits = Identifiers.Digits(nin);
+        if (!IsValidElevenDigits(digits))
+            return Result.Failure("NIN must be exactly 11 digits.");
+
+        Nin = digits;
+        return Result.Success();
+    }
+
+    /// <summary>Sets the means of identification as a whole. A type, number and (for an expiring
+    /// type) expiry go together; a half-filled ID is refused here rather than at submit.</summary>
+    public Result UpdateMeansOfId(RhshfMeansOfIdType? type, string? number, DateTime? expiry)
+    {
+        if (type is null)
+        {
+            if (!string.IsNullOrWhiteSpace(number) || expiry.HasValue)
+                return Result.Failure("Choose the type of identification.");
+            MeansOfIdType = null;
+            MeansOfIdNumber = null;
+            MeansOfIdExpiry = null;
+            return Result.Success();
+        }
+
+        if (string.IsNullOrWhiteSpace(number))
+            return Result.Failure("Enter the identification number.");
+        if (number.Trim().Length > 50)
+            return Result.Failure("The identification number is too long.");
+        if (TypeExpires(type.Value) && expiry is null)
+            return Result.Failure("Enter the expiry date shown on the identification.");
+
+        MeansOfIdType = type;
+        MeansOfIdNumber = number.Trim();
+        MeansOfIdExpiry = expiry?.Date;
+        return Result.Success();
+    }
+
+    public void UpdateContact(string? phoneNumber, string? email)
+    {
+        PhoneNumber = string.IsNullOrWhiteSpace(phoneNumber) ? null : phoneNumber.Trim();
+        Email = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+    }
+
+    internal void SetChiefPromoter(bool value) => IsChiefPromoter = value;
+
+    public bool HasMeansOfId => MeansOfIdType.HasValue && !string.IsNullOrWhiteSpace(MeansOfIdNumber);
+
+    /// <summary>Expired on <paramref name="asOf"/>. An ID with no expiry date never expires.</summary>
+    public bool IsMeansOfIdExpired(DateTime asOf) =>
+        MeansOfIdExpiry.HasValue && MeansOfIdExpiry.Value.Date < asOf.Date;
+
+    /// <summary>Passports and driving licences carry an expiry date; a voter's card and NIN slip do
+    /// not, and the national ID card's is optional.</summary>
+    public static bool TypeExpires(RhshfMeansOfIdType type) =>
+        type is RhshfMeansOfIdType.InternationalPassport or RhshfMeansOfIdType.DriversLicence;
+
+    private static bool IsValidElevenDigits(string? value) =>
+        value is null || (value.Length == 11 && value.All(char.IsAsciiDigit));
 
     /// <summary>Blank is allowed (BVN is optional until bureau checks run); a present value must be
     /// exactly 11 digits. NAMP only checks length — digits are checked here too, since a non-numeric

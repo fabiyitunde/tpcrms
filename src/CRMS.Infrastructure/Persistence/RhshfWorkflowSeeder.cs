@@ -19,6 +19,7 @@ public static class RhshfWorkflowSeeder
         await SeedAppraisalThresholdsAsync(context, logger);
         await SeedDocumentRequirementsAsync(context, logger);
         await BackfillDocumentFormatRulesAsync(context, logger);
+        await SeedProfilingFieldRequirementsAsync(context, logger);
         await BackfillGuarantorRelationshipsAsync(context, logger);
         await BackfillFinancingEopsAsync(context, logger);
         await SeedReasonCodesAsync(context, logger);
@@ -347,6 +348,20 @@ public static class RhshfWorkflowSeeder
                 "Resolution authorising the facility and naming the signatories.", isMandatory: false, sortOrder: 70),
             Requirement(RhshfDocumentCategory.LandDocumentation, "Land Documentation",
                 "Title, lease or documented usage rights over the hectares under cultivation.", isMandatory: false, sortOrder: 80),
+            // Raised by BOA for Credit Risk (2026-11-25), "subject to confirmation of their mandatory
+            // status": seeded mandatory, each one relaxable from the admin screen without a deploy.
+            Requirement(RhshfDocumentCategory.CompanyProfile, "Company Profile",
+                "The FAC's company profile: history, operations, ownership and track record.", isMandatory: true, sortOrder: 90),
+            Requirement(RhshfDocumentCategory.BusinessPlan, "Comprehensive Business Plan",
+                "The business plan for the season being financed, covering production, market and repayment.", isMandatory: true, sortOrder: 100),
+            Requirement(RhshfDocumentCategory.DirectorCv, "Director's CV",
+                "A current CV for each director.", isMandatory: true, sortOrder: 110),
+            Requirement(RhshfDocumentCategory.DirectorMeansOfId, "Director's Means of Identification",
+                "A clear copy of a valid ID for each director: national ID card, international passport, driver's licence, voter's card or NIN slip.", isMandatory: true, sortOrder: 120),
+            Requirement(RhshfDocumentCategory.ManagementCv, "Management Staff CV",
+                "A current CV for each member of management staff.", isMandatory: true, sortOrder: 130),
+            Requirement(RhshfDocumentCategory.ChiefPromoterCv, "CV of the Chief Promoter",
+                "Met by the CV uploaded for whoever is named Chief Promoter.", isMandatory: true, sortOrder: 140),
         };
 
         var missing = defaults.Where(r => !existingCategories.Contains(r.Category)).ToList();
@@ -361,6 +376,47 @@ public static class RhshfWorkflowSeeder
         logger.LogInformation(
             "Seeded {Count} RH-SHF document requirement(s): {Categories}.",
             missing.Count, string.Join(", ", missing.Select(r => r.Category)));
+    }
+
+    /// <summary>
+    /// The non-document items BOA asked for, one row per key. Add-missing, like the documents: an
+    /// administrator's mandatory/optional choice is never overwritten by a deploy.
+    /// </summary>
+    public static readonly (RhshfProfilingFieldKey Key, string Title, string Description, int SortOrder)[] DefaultFieldRequirements =
+    [
+        (RhshfProfilingFieldKey.DirectorNin, "Director's NIN", "Each director's National Identification Number.", 10),
+        (RhshfProfilingFieldKey.DirectorPhone, "Director's telephone", "A telephone number for each director.", 20),
+        (RhshfProfilingFieldKey.DirectorMeansOfId, "Director's means of identification",
+            "ID type, number and expiry date for each director. An expired ID is not accepted.", 30),
+        (RhshfProfilingFieldKey.ManagementStaffRequired, "Management staff listed",
+            "At least one member of management staff.", 40),
+        (RhshfProfilingFieldKey.ManagementPhone, "Management staff telephone",
+            "A telephone number for each member of management staff.", 50),
+        (RhshfProfilingFieldKey.ChiefPromoterDesignated, "Chief Promoter named",
+            "One director or member of management named as Chief Promoter.", 60),
+    ];
+
+    private static async Task SeedProfilingFieldRequirementsAsync(CRMSDbContext context, ILogger logger)
+    {
+        var existing = await context.RhshfProfilingFieldRequirements.Select(r => r.Key).ToListAsync();
+        var missing = DefaultFieldRequirements
+            .Where(d => !existing.Contains(d.Key))
+            .Select(d =>
+            {
+                var row = RhshfProfilingFieldRequirement.Create(d.Key, d.Title, d.Description, isMandatory: true, d.SortOrder).Value;
+                row.SetAuditInfo("System Seeder", isNew: true);
+                return row;
+            })
+            .ToList();
+
+        if (missing.Count == 0)
+            return;
+
+        await context.RhshfProfilingFieldRequirements.AddRangeAsync(missing);
+        await context.SaveChangesAsync();
+        logger.LogInformation(
+            "Seeded {Count} RH-SHF profiling field requirement(s): {Keys}.",
+            missing.Count, string.Join(", ", missing.Select(r => r.Key)));
     }
 
     private static RhshfDocumentRequirement Requirement(
@@ -397,8 +453,14 @@ public static class RhshfWorkflowSeeder
             ([RhshfDocumentFormat.Pdf, RhshfDocumentFormat.Image], false),
 
         RhshfDocumentCategory.CacCertificate or RhshfDocumentCategory.BoardResolution
-            or RhshfDocumentCategory.OffTakeAgreement or RhshfDocumentCategory.CreditAppraisalMemorandum =>
+            or RhshfDocumentCategory.OffTakeAgreement or RhshfDocumentCategory.CreditAppraisalMemorandum
+            or RhshfDocumentCategory.CompanyProfile or RhshfDocumentCategory.BusinessPlan
+            or RhshfDocumentCategory.DirectorCv or RhshfDocumentCategory.ManagementCv =>
             ([RhshfDocumentFormat.Pdf], false),
+
+        // IDs are as often photographed as scanned.
+        RhshfDocumentCategory.DirectorMeansOfId =>
+            ([RhshfDocumentFormat.Pdf, RhshfDocumentFormat.Image], false),
 
         // Including Other: a catch-all slot cannot say what belongs in it.
         _ => ([], false),

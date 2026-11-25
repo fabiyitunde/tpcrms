@@ -33,6 +33,17 @@ public static class RhshfDisplayNames
     public static string GuarantorRelationshipLabel(RhshfGuarantorRelationship relationship) =>
         SplitOnCapitals(relationship.ToString());
 
+    /// <summary>A director's means of identification, as written on the document itself.</summary>
+    public static string MeansOfIdLabel(RhshfMeansOfIdType type) => type switch
+    {
+        RhshfMeansOfIdType.NationalIdCard => "National ID card",
+        RhshfMeansOfIdType.InternationalPassport => "International passport",
+        RhshfMeansOfIdType.DriversLicence => "Driver's licence",
+        RhshfMeansOfIdType.VotersCard => "Voter's card",
+        RhshfMeansOfIdType.NinSlip => "NIN slip",
+        _ => SplitOnCapitals(type.ToString()),
+    };
+
     /// <summary>
     /// The file picker's accept filter for a slot, so the FAC's file browser offers what will
     /// actually be taken. Empty where the slot accepts anything, which leaves the picker unfiltered.

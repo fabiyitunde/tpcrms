@@ -309,7 +309,8 @@ else
             <DirectorsTab Directors="directors" CanManageDirectors="CanManageDirectors"
                 CrossCheck="directorCrossCheck" IsCrossChecking="isCrossChecking" CrossCheckError="@crossCheckError"
                 OnRunCrossCheck="RunDirectorCrossCheck" OnAddDirector="OpenAddDirectorModal"
-                OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector" />
+                OnEditDirector="OpenEditDirectorModal" OnRemoveDirector="RemoveDirector"
+                CanRevealIdentity="canRevealIdentity" OnRevealIdentity="RevealDirectorIdentity" />
             break;
         case "financialanalysis":
             <RhshfFinancialAnalysisTab Analysis="financialAnalysis" LoadError="@financialAnalysisLoadError"
@@ -324,7 +325,7 @@ else
             <RhshfBankStatementsTab BoaAccountNumber="@workspace.BoaAccountNumber" Statement="bankStatement"
                 StatementError="@bankStatementError" IsFetching="isFetchingStatement" OnRefresh="RefreshBankStatement"
                 UploadedStatements="BankStatementDocs" OnDownload="DownloadSupportingDocument"
-                OnFetchBytes="AppService.DownloadRhshfSupportingDocumentAsync" Currency="@workspace.Currency" />
+                OnFetchBytes="id => AppService.DownloadRhshfSupportingDocumentAsync(id, isView: true)" Currency="@workspace.Currency" />
             break;
         case "guarantors":
             <GuarantorsTab Guarantors="guarantors" CanManage="CanManageGuarantors" Currency="@workspace.Currency"
@@ -341,7 +342,9 @@ else
             break;
         case "documents":
             <DocumentsTab Documents="workspace.SupportingDocuments" OnDownload="DownloadSupportingDocument"
-                OnFetchBytes="AppService.DownloadRhshfSupportingDocumentAsync" />
+                OnFetchBytes="id => AppService.DownloadRhshfSupportingDocumentAsync(id, isView: true)"
+                Readiness="readiness" CanVerify="CanVerifyDocuments" CanViewPersonal="canViewPersonalDocuments"
+                OnReview="ReviewSupportingDocument" />
             break;
         case "financialappraisal":
             <FinancialAppraisalTab Data="financialAppraisal" LoadError="@financialAppraisalError"
@@ -502,6 +505,9 @@ else
     private RhshfAdvisoryDto? advisory;
     private bool isGeneratingAdvisory;
     private RhshfDirectorsDto? directors;
+    private CRMS.Application.Rhshf.Commands.RhshfReadinessDto? readiness;
+    private bool canViewPersonalDocuments;
+    private bool canRevealIdentity;
     private List<RhshfBureauReportDto> bureauReports = [];
     private RhshfDirectorDto? editingDirector;
     private CRMS.Application.Rhshf.Queries.RhshfDirectorCrossCheckDto? directorCrossCheck;
@@ -527,6 +533,8 @@ else
 
     private Guid CurrentUserId => AuthService.CurrentUser?.Id ?? Guid.Empty;
     private bool CanAppraise => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CreditOfficer") ?? false;
+    // Document review happens at appraisal, and Proceed is gated on it.
+    private bool CanVerifyDocuments => CanAppraise && workspace?.InternalStage == RhshfInternalStage.Appraisal;
     private bool CanReviewRisk => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "RiskManager") ?? false;
     private bool CanVoteOnCommittee => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "CommitteeMember") ?? false;
     private bool CanRatify => AuthService.CurrentUser?.HasAnyRole("SystemAdmin", "FinalApprover") ?? false;
@@ -628,6 +636,10 @@ else
             facEmails = await AppService.GetRhshfFacEmailsAsync(Reference);
             comments = await AppService.GetRhshfCommentsAsync(Reference);
             guarantors = await AppService.GetRhshfGuarantorsAsync(Reference);
+            readiness = await AppService.GetRhshfReadinessAsync(Reference);
+            // Feature access is the administrator's setting, so it is asked rather than read off roles.
+            canViewPersonalDocuments = await AppService.CanViewRhshfPersonalDocumentsAsync(CurrentUserId);
+            canRevealIdentity = await AppService.CanRevealRhshfIdentityAsync(CurrentUserId);
         }
         catch (Exception ex)
         {
@@ -816,6 +828,23 @@ else
         var fresh = await AppService.GetRhshfCaseWorkspaceAsync(Reference);
         if (fresh is not null)
             workspace = fresh;
+        readiness = await AppService.GetRhshfReadinessAsync(Reference);
+    }
+
+    /// <summary>Verify or reject one FAC document, then re-read the documents and the readiness list
+    /// so the Proceed gate the officer sees matches the one the server applies.</summary>
+    private async Task<string?> ReviewSupportingDocument(Guid documentId, bool verified, string? reason)
+    {
+        var result = await AppService.ReviewRhshfSupportingDocumentAsync(Reference, documentId, verified, reason, CurrentUserId);
+        await RefreshSupportingDocuments();
+        StateHasChanged();
+        return result.Success ? null : result.Error;
+    }
+
+    private async Task<string?> RevealDirectorIdentity(Guid directorId, bool nin)
+    {
+        var result = await AppService.RevealRhshfDirectorIdentityAsync(Reference, directorId, nin, CurrentUserId);
+        return result.Success ? result.Data : null;
     }
 
     private async Task SaveFinancialStatement(RhshfFinancialStatementModal.RhshfFinancialStatementFormData data)

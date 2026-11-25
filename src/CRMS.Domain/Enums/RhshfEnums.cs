@@ -18,8 +18,8 @@ public enum RhshfCaseStatus
 }
 
 /// <summary>
-/// FAC-facing steps inside the CRMS-hosted profiling form (design doc §4).
-/// Director/shareholder capture is deliberately excluded from v1 — see design doc §6 #3.
+/// FAC-facing steps inside the CRMS-hosted profiling form (design doc §4). Directors and
+/// management staff are captured on the CreditBureauCheck stage.
 /// </summary>
 public enum RhshfProfilingStage
 {
@@ -88,6 +88,60 @@ public enum RhshfDocumentCategory
     /// one on an earlier session it can be carried over instead of re-uploaded — see
     /// RhshfSupportingDocument's reuse provenance.</summary>
     CreditAppraisalMemorandum,
+    /// <summary>The FAC's company profile.</summary>
+    CompanyProfile,
+    /// <summary>A comprehensive business plan, alongside the structured farm plan.</summary>
+    BusinessPlan,
+    /// <summary>One per director — see <see cref="RhshfRequirementAppliesTo.EachDirector"/>.</summary>
+    DirectorCv,
+    /// <summary>Scan of the director's means of identification, one per director.</summary>
+    DirectorMeansOfId,
+    /// <summary>One per member of management staff.</summary>
+    ManagementCv,
+    /// <summary>Satisfied by the CV of whoever the FAC flags as Chief Promoter, director or manager —
+    /// never a separate upload, so a promoter is not asked for the same CV twice.</summary>
+    ChiefPromoterCv,
+}
+
+/// <summary>Who a document requirement is asked of. Persisted by name; Case is the behaviour every
+/// requirement had before per-person documents existed.</summary>
+public enum RhshfRequirementAppliesTo
+{
+    Case,
+    EachDirector,
+    EachManagementStaff,
+    ChiefPromoter,
+}
+
+/// <summary>A reviewer's check of one FAC document. Every upload starts Pending; a re-upload
+/// replaces the file and so starts Pending again.</summary>
+public enum RhshfDocumentVerificationStatus
+{
+    Pending,
+    Verified,
+    Rejected,
+}
+
+/// <summary>Means of identification a director may present.</summary>
+public enum RhshfMeansOfIdType
+{
+    NationalIdCard,
+    InternationalPassport,
+    DriversLicence,
+    VotersCard,
+    NinSlip,
+}
+
+/// <summary>Non-document profiling items an admin can make mandatory or optional
+/// (Admin &gt; RH-SHF Document Requirements). Persisted by name.</summary>
+public enum RhshfProfilingFieldKey
+{
+    DirectorNin,
+    DirectorPhone,
+    DirectorMeansOfId,
+    ManagementStaffRequired,
+    ManagementPhone,
+    ChiefPromoterDesignated,
 }
 
 /// <summary>Repayment capacity band, derived from DSCR relative to the configured minimum.</summary>

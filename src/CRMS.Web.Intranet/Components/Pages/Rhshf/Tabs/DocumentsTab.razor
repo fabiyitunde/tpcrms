@@ -1,3 +1,4 @@
+@using CRMS.Application.Rhshf.Commands
 @using CRMS.Application.Rhshf.DTOs
 @using CRMS.Application.Rhshf.Queries
 @using CRMS.Domain.Enums
@@ -5,8 +6,54 @@
 
 @* Mirrors Corporate's DocumentsTab: a single card with the document table (icon + name, category,
    uploaded, size, actions) and an in-page viewer modal. RH-SHF documents are attached by the FAC
-   during profiling, so there is no verify / reject / delete workflow here — the actions are
-   download and view only. The viewer uses a blob URL (RH-SHF streams bytes, not a view URL). *@
+   during profiling, so there is no delete here. A Credit Officer verifies or rejects each one at
+   appraisal (Proceed is refused until the mandatory ones are verified); a rejected file goes back
+   to the FAC with the case. The viewer uses a blob URL (RH-SHF streams bytes, not a view URL). *@
+
+@if (Readiness is not null && Readiness.Items.Count > 0)
+{
+    var outstanding = Readiness.Items.Count(i => i.IsMandatory && i.Status is "Missing" or "Invalid" or "Pending" or "Rejected");
+    <div class="card" style="margin-bottom: var(--space-4);">
+        <div class="card-header">
+            <h3 class="card-title">Credit Risk Readiness</h3>
+            <span class="badge @(outstanding == 0 ? "badge-success" : "badge-warning")">
+                @(outstanding == 0 ? "Ready" : $"{outstanding} outstanding")
+            </span>
+        </div>
+        <div class="card-body" style="padding: 0;">
+            @if (Readiness.AppraisalBlockers.Count > 0)
+            {
+                <div style="padding: var(--space-3) var(--space-4); font-size: var(--text-sm); color: var(--warning-700, #92400e); background: var(--warning-50, #fffbeb);">
+                    Proceed is not available yet: @string.Join("; ", Readiness.AppraisalBlockers).
+                </div>
+            }
+            <table class="table">
+                <thead><tr><th>Requirement</th><th>For</th><th></th><th>Status</th></tr></thead>
+                <tbody>
+                    @foreach (var item in Readiness.Items)
+                    {
+                        <tr>
+                            <td>@item.Title</td>
+                            <td style="font-size: var(--text-sm);">@(item.PersonName ?? "Company")</td>
+                            <td><span class="badge badge-gray">@(item.IsMandatory ? "Required" : "Optional")</span></td>
+                            <td>
+                                <span class="badge @StatusBadge(item.Status)">@StatusLabel(item)</span>
+                                @if (!string.IsNullOrEmpty(item.Note) && item.Status != "Provided")
+                                {
+                                    <div style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500);">@item.Note</div>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+            <div style="padding: var(--space-2) var(--space-4); font-size: var(--text-xs, 0.72rem); color: var(--gray-500);">
+                Which items are required is set in Admin &gt; RH-SHF Document Requirements. Cases submitted before an item
+                existed are not held up for it at appraisal.
+            </div>
+        </div>
+    </div>
+}
 
 <div class="card">
     <div class="card-header">
@@ -14,6 +61,10 @@
         <span class="badge badge-primary">@Documents.Count</span>
     </div>
     <div class="card-body" style="padding: 0;">
+        @if (_reviewError is not null)
+        {
+            <div class="alert alert-danger" style="margin: var(--space-3);">@_reviewError</div>
+        }
         @if (!Documents.Any())
         {
             <div class="empty-state">
@@ -44,10 +95,25 @@
                                     <div style="width: 40px; height: 40px; background: var(--gray-100); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
                                         <span class="material-symbols-outlined" style="color: var(--gray-500);">@GetDocIcon(doc.FileName)</span>
                                     </div>
-                                    <span style="font-weight: 500;">@doc.FileName</span>
+                                    <div>
+                                        <span style="font-weight: 500;">@doc.FileName</span>
+                                        <div style="margin-top: 2px;">
+                                            <span class="badge @VerificationBadge(doc.VerificationStatus)">@doc.VerificationStatus</span>
+                                            @if (doc.VerificationStatus == RhshfDocumentVerificationStatus.Rejected && !string.IsNullOrEmpty(doc.RejectionReason))
+                                            {
+                                                <span style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500);">@doc.RejectionReason</span>
+                                            }
+                                        </div>
+                                    </div>
                                 </div>
                             </td>
-                            <td>@FormatCategory(doc.Category)</td>
+                            <td>
+                                @FormatCategory(doc.Category)
+                                @if (doc.PersonName is not null)
+                                {
+                                    <div style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500);">@doc.PersonName</div>
+                                }
+                            </td>
                             <td>
                                 <div style="font-size: var(--text-sm);">@doc.UploadedAt.ToLocalTime().ToString("MMM dd, yyyy")</div>
                                 @* A carried-over document was prepared for an earlier season. The reviewer has to
@@ -64,7 +130,14 @@
                             </td>
                             <td style="font-size: var(--text-sm); color: var(--gray-500);">@FormatSize(doc.SizeBytes)</td>
                             <td>
-                                <div style="display: flex; gap: var(--space-2);">
+                                <div style="display: flex; gap: var(--space-2); align-items: center;">
+                                    @if (IsPersonal(doc) && !CanViewPersonal)
+                                    {
+                                        @* A CV or ID needs Admin > Feature Access; the download handler refuses it too. *@
+                                        <span style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500);" title="Needs the 'Open RH-SHF directors' and managers' CVs and IDs' feature">Restricted</span>
+                                    }
+                                    else
+                                    {
                                     <button class="btn btn-ghost btn-sm" title="Download" @onclick="() => OnDownload.InvokeAsync(currentDoc.Id)">
                                         <span class="material-symbols-outlined" style="font-size: 18px;">download</span>
                                     </button>
@@ -78,9 +151,38 @@
                                             <span class="material-symbols-outlined" style="font-size: 18px;">visibility</span>
                                         }
                                     </button>
+                                    }
+                                    @if (CanVerify)
+                                    {
+                                        @if (doc.VerificationStatus != RhshfDocumentVerificationStatus.Verified)
+                                        {
+                                            <button class="btn btn-secondary btn-sm" disabled="@_busy" @onclick="() => Verify(currentDoc)">Verify</button>
+                                        }
+                                        @if (doc.VerificationStatus != RhshfDocumentVerificationStatus.Rejected)
+                                        {
+                                            <button class="btn btn-ghost btn-sm" disabled="@_busy" @onclick="() => StartReject(currentDoc)">Reject</button>
+                                        }
+                                    }
                                 </div>
                             </td>
                         </tr>
+                        @if (_rejecting == currentDoc.Id)
+                        {
+                            <tr>
+                                <td colspan="5">
+                                    <div style="display: flex; gap: var(--space-2); align-items: flex-start;">
+                                        <textarea class="form-input" rows="2" style="flex: 1;" maxlength="1000"
+                                                  placeholder="Why is this document not acceptable? The FAC will see this."
+                                                  @bind="_rejectReason" @bind:event="oninput"></textarea>
+                                        <button class="btn btn-danger btn-sm" disabled="@(_busy || string.IsNullOrWhiteSpace(_rejectReason))" @onclick="() => ConfirmReject(currentDoc)">Reject</button>
+                                        <button class="btn btn-secondary btn-sm" @onclick="CancelReject">Cancel</button>
+                                    </div>
+                                    <div style="font-size: var(--text-xs, 0.72rem); color: var(--gray-500); margin-top: var(--space-1);">
+                                        To get a replacement, return the case to the FAC at the supporting documents step after rejecting.
+                                    </div>
+                                </td>
+                            </tr>
+                        }
                     }
                 </tbody>
             </table>
@@ -139,6 +241,72 @@
     /// <summary>Fetches the document bytes for the in-page viewer. Returns null if the file can't be
     /// read; the viewer then shows the download fallback.</summary>
     [Parameter] public Func<Guid, Task<RhshfDownloadedFileDto?>>? OnFetchBytes { get; set; }
+
+    /// <summary>The Credit Risk Readiness list; the panel is hidden when null.</summary>
+    [Parameter] public RhshfReadinessDto? Readiness { get; set; }
+    /// <summary>Computed in Detail.razor: a Credit Officer (or admin) while the case is at appraisal.</summary>
+    [Parameter] public bool CanVerify { get; set; }
+    /// <summary>Whether this user may open directors' and managers' CVs and IDs.</summary>
+    [Parameter] public bool CanViewPersonal { get; set; }
+    /// <summary>(documentId, verified, reason). Returns an error to show, or null on success.</summary>
+    [Parameter] public Func<Guid, bool, string?, Task<string?>>? OnReview { get; set; }
+
+    private Guid? _rejecting;
+    private string? _rejectReason;
+    private bool _busy;
+    private string? _reviewError;
+
+    private static bool IsPersonal(RhshfSupportingDocumentDto doc) => doc.DirectorId.HasValue || doc.ManagementStaffId.HasValue;
+
+    private async Task Verify(RhshfSupportingDocumentDto doc) => await Review(doc, true, null);
+
+    private void StartReject(RhshfSupportingDocumentDto doc)
+    {
+        _rejecting = doc.Id;
+        _rejectReason = null;
+    }
+
+    private void CancelReject()
+    {
+        _rejecting = null;
+        _rejectReason = null;
+    }
+
+    private async Task ConfirmReject(RhshfSupportingDocumentDto doc)
+    {
+        await Review(doc, false, _rejectReason);
+        if (_reviewError is null) CancelReject();
+    }
+
+    private async Task Review(RhshfSupportingDocumentDto doc, bool verified, string? reason)
+    {
+        if (OnReview is null) return;
+        _busy = true;
+        try { _reviewError = await OnReview(doc.Id, verified, reason); }
+        finally { _busy = false; }
+    }
+
+    private static string VerificationBadge(RhshfDocumentVerificationStatus status) => status switch
+    {
+        RhshfDocumentVerificationStatus.Verified => "badge-success",
+        RhshfDocumentVerificationStatus.Rejected => "badge-danger",
+        _ => "badge-warning",
+    };
+
+    private static string StatusBadge(string status) => status switch
+    {
+        "Verified" or "Provided" => "badge-success",
+        "Rejected" or "Invalid" => "badge-danger",
+        "Pending" => "badge-warning",
+        _ => "badge-gray",
+    };
+
+    private static string StatusLabel(RhshfReadinessItemDto item) => item.Status switch
+    {
+        "Pending" => "Awaiting verification",
+        "Invalid" => "Not valid",
+        _ => item.Status,
+    };
 
     private bool _viewerOpen;
     private RhshfSupportingDocumentDto? _selected;

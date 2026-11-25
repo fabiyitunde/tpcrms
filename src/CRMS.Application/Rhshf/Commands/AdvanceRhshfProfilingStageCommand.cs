@@ -20,16 +20,19 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
     private readonly IRhshfDocumentRequirementRepository _requirementRepo;
     private readonly IRhshfGuarantorRepository _guarantorRepo;
     private readonly IRhshfCollateralRepository _collateralRepo;
+    private readonly IRhshfProfilingFieldRequirementRepository? _fieldRequirementRepo;
     private readonly IUnitOfWork _uow;
 
     public AdvanceRhshfProfilingStageHandler(
         IRhshfCreditProfileRepository repo, IRhshfDocumentRequirementRepository requirementRepo,
-        IRhshfGuarantorRepository guarantorRepo, IRhshfCollateralRepository collateralRepo, IUnitOfWork uow)
+        IRhshfGuarantorRepository guarantorRepo, IRhshfCollateralRepository collateralRepo, IUnitOfWork uow,
+        IRhshfProfilingFieldRequirementRepository? fieldRequirementRepo = null)
     {
         _repo = repo;
         _requirementRepo = requirementRepo;
         _guarantorRepo = guarantorRepo;
         _collateralRepo = collateralRepo;
+        _fieldRequirementRepo = fieldRequirementRepo;
         _uow = uow;
     }
 
@@ -83,7 +86,15 @@ public class AdvanceRhshfProfilingStageHandler : IRequestHandler<AdvanceRhshfPro
             ? await _requirementRepo.GetActiveAsync(ct)
             : null;
 
-        var result = profile.AdvanceStage(request.ExpectedCurrentStage, requirements, request.IpAddress, request.UserAgent);
+        // Directors' and management's details are gated on leaving the bureau stage (where they are
+        // entered) and again at submit.
+        var fieldRequirements = _fieldRequirementRepo is not null
+            && request.ExpectedCurrentStage is RhshfProfilingStage.CreditBureauCheck or RhshfProfilingStage.ReviewAndSubmit
+            ? await _fieldRequirementRepo.GetAllAsync(ct)
+            : null;
+
+        var result = profile.AdvanceStage(
+            request.ExpectedCurrentStage, requirements, request.IpAddress, request.UserAgent, fieldRequirements);
         if (result.IsFailure)
             return ApplicationResult.Failure(result.Error);
 

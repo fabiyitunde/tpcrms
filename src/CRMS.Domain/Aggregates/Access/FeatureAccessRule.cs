@@ -57,13 +57,20 @@ public static class FeatureKeys
     public const string CreditCheckRun = "credit-check.run";
     /// <summary>Open credit checks other staff ran.</summary>
     public const string CreditCheckViewAll = "credit-check.view-all";
+    /// <summary>Open an RH-SHF director's or manager's CV and ID.</summary>
+    public const string RhshfPersonalDocumentsView = "rhshf.personal-documents.view";
+    /// <summary>See an RH-SHF director's full BVN or NIN (masked otherwise).</summary>
+    public const string RhshfIdentityReveal = "rhshf.identity.reveal";
 
-    public static readonly IReadOnlyList<string> All = [CreditCheckRun, CreditCheckViewAll];
+    public static readonly IReadOnlyList<string> All =
+        [CreditCheckRun, CreditCheckViewAll, RhshfPersonalDocumentsView, RhshfIdentityReveal];
 
     public static string Label(string key) => key switch
     {
         CreditCheckRun => "Run credit checks",
         CreditCheckViewAll => "See every staff member's credit checks",
+        RhshfPersonalDocumentsView => "Open RH-SHF directors' and managers' CVs and IDs",
+        RhshfIdentityReveal => "Reveal an RH-SHF director's full BVN or NIN",
         _ => key,
     };
 
@@ -71,6 +78,20 @@ public static class FeatureKeys
     {
         CreditCheckRun => "Run an individual (BVN) or company (RC number) credit check from Credit Check in the menu, and see the checks they ran themselves. Each check calls billed third parties.",
         CreditCheckViewAll => "Open and download credit checks run by anyone, not only their own. Each look at someone else's check is written to the audit trail.",
+        RhshfPersonalDocumentsView => "View and download the CVs and means of identification a FAC uploaded for its directors and management staff. Each view and download is written to the audit trail.",
+        RhshfIdentityReveal => "Show a director's BVN or NIN in full, where everyone else sees it masked. Each reveal is written to the audit trail.",
         _ => string.Empty,
+    };
+
+    /// <summary>The roles a feature's row is seeded with when it is first added. Credit checks start
+    /// with administrators only; the RH-SHF reviewer features start with the roles that review the
+    /// file, so a Credit Officer can verify a director's CV on the day this ships. Never re-applied:
+    /// once the row exists, its roles are the administrator's.</summary>
+    public static IReadOnlyList<string> DefaultRoles(string key) => key switch
+    {
+        RhshfPersonalDocumentsView =>
+            [Roles.CreditOfficer, Roles.LegalOfficer, Roles.RiskManager, Roles.CommitteeMember, Roles.FinalApprover],
+        RhshfIdentityReveal => [Roles.CreditOfficer, Roles.RiskManager],
+        _ => [],
     };
 }

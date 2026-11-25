@@ -40,6 +40,23 @@ public class RhshfDocumentRequirement : Entity
     /// </summary>
     public bool MustMatchFinancialTemplate { get; private set; }
 
+    /// <summary>Who must supply the document: the company once, or every director, every manager,
+    /// or the Chief Promoter. Fixed by the category rather than stored, so an admin cannot ask for a
+    /// director's CV "once per case".</summary>
+    public RhshfRequirementAppliesTo AppliesTo => AppliesToFor(Category);
+
+    public static RhshfRequirementAppliesTo AppliesToFor(RhshfDocumentCategory category) => category switch
+    {
+        RhshfDocumentCategory.DirectorCv or RhshfDocumentCategory.DirectorMeansOfId => RhshfRequirementAppliesTo.EachDirector,
+        RhshfDocumentCategory.ManagementCv => RhshfRequirementAppliesTo.EachManagementStaff,
+        RhshfDocumentCategory.ChiefPromoterCv => RhshfRequirementAppliesTo.ChiefPromoter,
+        _ => RhshfRequirementAppliesTo.Case,
+    };
+
+    /// <summary>A slot the FAC fills once per person, so the form renders one row per director or
+    /// manager. ChiefPromoter is not one: it has no upload of its own.</summary>
+    public bool IsPerPerson => AppliesTo is RhshfRequirementAppliesTo.EachDirector or RhshfRequirementAppliesTo.EachManagementStaff;
+
     /// <summary>The configured formats, or an empty list where the slot accepts anything. Unknown
     /// names are ignored rather than thrown: a rule nobody can parse must not block an upload.</summary>
     public IReadOnlyList<RhshfDocumentFormat> AllowedFormatList =>
