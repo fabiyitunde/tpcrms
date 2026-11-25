@@ -55,6 +55,12 @@ else
                     {
                         <text>Last changed @((at + TimeSpan.FromHours(1)).ToString("dd MMM yyyy HH:mm")) by @rule.ModifiedBy</text>
                     }
+                    else if (rule.AllowedRoles.Count > 0)
+                    {
+                        @* Seeded with default roles (FeatureKeys.DefaultRoles), so "administrators only"
+                           would be wrong. *@
+                        <text>Never changed: the roles it was set up with.</text>
+                    }
                     else
                     {
                         <text>Never changed: administrators only.</text>

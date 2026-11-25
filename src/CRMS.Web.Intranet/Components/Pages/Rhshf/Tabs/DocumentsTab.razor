@@ -12,12 +12,14 @@
 
 @if (Readiness is not null && Readiness.Items.Count > 0)
 {
-    var outstanding = Readiness.Items.Count(i => i.IsMandatory && i.Status is "Missing" or "Invalid" or "Pending" or "Rejected");
+    // Counts what actually holds up Proceed. A mandatory item that is simply missing on a case
+    // submitted before it was asked for is listed below but does not block, so it is not counted.
+    var blocking = Readiness.AppraisalBlockers.Count;
     <div class="card" style="margin-bottom: var(--space-4);">
         <div class="card-header">
             <h3 class="card-title">Credit Risk Readiness</h3>
-            <span class="badge @(outstanding == 0 ? "badge-success" : "badge-warning")">
-                @(outstanding == 0 ? "Ready" : $"{outstanding} outstanding")
+            <span class="badge @(blocking == 0 ? "badge-success" : "badge-warning")">
+                @(blocking == 0 ? "Nothing blocking Proceed" : $"{blocking} blocking Proceed")
             </span>
         </div>
         <div class="card-body" style="padding: 0;">
