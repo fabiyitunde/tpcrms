@@ -347,7 +347,7 @@ else
                 OnReview="ReviewSupportingDocument" />
             break;
         case "financialappraisal":
-            <FinancialAppraisalTab Data="financialAppraisal" LoadError="@financialAppraisalError"
+            <FinancialAppraisalTab Reference="@Reference" Data="financialAppraisal" LoadError="@financialAppraisalError"
                 CanEdit="CanEditFinancialAppraisal"
                 OnAddFarmPlan="OpenAddFarmPlanModal" OnEditFarmPlan="OpenEditFarmPlanModal"
                 OnRemoveFarmPlan="RemoveFarmPlan" OnOpenAppraisal="OpenFinancialAppraisalModal" />

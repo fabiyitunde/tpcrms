@@ -1047,6 +1047,11 @@ else
 
         <div style="display: flex; flex-direction: column; gap: 1.5rem;">
 
+            <div style="display: flex; justify-content: flex-end; margin-bottom: -0.75rem;">
+                <AppraisalDownloadButton Generate="() => AppService.DownloadNampCreditAppraisalAsync(app.Id)"
+                    UnavailableReason="@(finReport is null ? "Save an appraisal to download it" : null)" />
+            </div>
+
             <!-- ── Calculator Card ── -->
             <div class="card">
                 <div class="card-header">

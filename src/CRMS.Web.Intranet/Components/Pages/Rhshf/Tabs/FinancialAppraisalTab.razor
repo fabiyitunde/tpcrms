@@ -1,4 +1,5 @@
 @using CRMS.Application.Rhshf.Queries
+@inject ApplicationService AppService
 @using CRMS.Domain.Enums
 
 @if (Data is null)
@@ -17,6 +18,10 @@ else
     var r = Data.Report;
 
     <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+        <div style="display: flex; justify-content: flex-end; margin-bottom: -0.75rem;">
+            <AppraisalDownloadButton Generate="() => AppService.DownloadRhshfCreditAppraisalAsync(Reference)"
+                UnavailableReason="@(r is null ? "Save an appraisal to download it" : null)" />
+        </div>
 
         @* ── What this tab is (mirrors Corporate's Financials requirements box) ── *@
         <div class="card" style="background: var(--primary-50); border-color: var(--primary-200); margin-bottom: 0;">
@@ -276,6 +281,7 @@ else
 }
 
 @code {
+    [Parameter] public string Reference { get; set; } = string.Empty;
     [Parameter] public RhshfFinancialAppraisalDto? Data { get; set; }
     [Parameter] public string? LoadError { get; set; }
     [Parameter] public bool CanEdit { get; set; }

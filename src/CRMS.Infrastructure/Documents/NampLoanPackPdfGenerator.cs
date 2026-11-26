@@ -220,126 +220,8 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
             // ── Financial Appraisal ──────────────────────────────────────────
             if (data.FinancialAppraisal != null)
             {
-                var fa = data.FinancialAppraisal;
                 col.Item().Element(c => SectionHeader(c, "Financial Appraisal"));
-                col.Item().PaddingBottom(4).Table(t =>
-                {
-                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
-                    InfoCell(t, "Repayment Source",          FormatRepaymentSource(fa.RepaymentSource));
-                    InfoCell(t, "Monthly Disposable Income", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
-                    InfoCell(t, "DSCR",                      fa.DebtServiceCoverageRatio?.ToString("N2") ?? "—");
-                    InfoCell(t, "LTV Ratio",                 fa.LoanToValueRatio.HasValue ? $"{fa.LoanToValueRatio:N1}%" : "—");
-                    InfoCell(t, "Repayment Capacity",        fa.RepaymentCapacityRating);
-                    InfoCell(t, "Credit Recommendation",     fa.CreditOfficerRecommendation);
-                    InfoCell(t, "Prepared On",               fa.SavedAt.ToLocalTime().ToString("dd MMM yyyy"));
-                    if (fa.ProjectedMonthlyRentalRevenue.HasValue)
-                        InfoCell(t, "Projected Rental Rev.", $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}");
-                    if (fa.UtilisationRateAssumption.HasValue)
-                        InfoCell(t, "Utilisation Assumption", $"{fa.UtilisationRateAssumption:N1}%");
-                    if (!string.IsNullOrWhiteSpace(fa.DemandEvidenceNote))
-                        InfoCellWide(t, "Demand Evidence", fa.DemandEvidenceNote);
-                    if (!string.IsNullOrWhiteSpace(fa.EquityAssessmentNote))
-                        InfoCellWide(t, "Equity Assessment", fa.EquityAssessmentNote);
-                    if (!string.IsNullOrWhiteSpace(fa.CreditBureauSummary))
-                        InfoCellWide(t, "Bureau Summary",    fa.CreditBureauSummary);
-                    if (!string.IsNullOrWhiteSpace(fa.SummaryNotes))
-                        InfoCellWide(t, "Summary Notes",     fa.SummaryNotes);
-                });
-
-                // Viability Calculator — only render if at least one input was captured
-                var hasViabilityInputs = fa.HectaresPerMonth.HasValue || fa.RatePerHectare.HasValue ||
-                                         fa.MonthlyFuelCost.HasValue  || fa.MonthlyMaintenanceCost.HasValue ||
-                                         fa.MonthlyOperatorWage.HasValue;
-                var hasViabilityMetrics = fa.NetPresentValue.HasValue || fa.BenefitCostRatio.HasValue ||
-                                          fa.InternalRateOfReturn.HasValue || fa.ProfitabilityIndex.HasValue;
-
-                if (hasViabilityInputs || hasViabilityMetrics)
-                {
-                    col.Item().PaddingTop(2).PaddingBottom(2)
-                        .Background(Color.FromHex(AccentBlue)).Padding(4)
-                        .Text("Tractor Loan Viability Calculator").Bold().FontSize(8).FontColor(Colors.White);
-
-                    if (hasViabilityInputs)
-                    {
-                        col.Item().PaddingBottom(4).Table(t =>
-                        {
-                            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
-                            InfoCell(t, "Hectares / Month",      fa.HectaresPerMonth.HasValue ? $"{fa.HectaresPerMonth:N1} ha" : "—");
-                            InfoCell(t, "Rate / Hectare",        fa.RatePerHectare.HasValue ? $"NGN {fa.RatePerHectare:N2}" : "—");
-                            InfoCell(t, "Monthly Fuel Cost",     fa.MonthlyFuelCost.HasValue ? $"NGN {fa.MonthlyFuelCost:N2}" : "—");
-                            InfoCell(t, "Maintenance Cost",      fa.MonthlyMaintenanceCost.HasValue ? $"NGN {fa.MonthlyMaintenanceCost:N2}" : "—");
-                            InfoCell(t, "Operator Wage",         fa.MonthlyOperatorWage.HasValue ? $"NGN {fa.MonthlyOperatorWage:N2}" : "—");
-                        });
-                    }
-
-                    if (hasViabilityMetrics)
-                    {
-                        col.Item().PaddingBottom(4).Table(t =>
-                        {
-                            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
-                            ViabilityMetricCell(t, "NPV",  fa.NetPresentValue.HasValue   ? $"NGN {fa.NetPresentValue:N0}" : "—",   fa.NetPresentValue > 0);
-                            ViabilityMetricCell(t, "BCR",  fa.BenefitCostRatio.HasValue  ? $"{fa.BenefitCostRatio:N3}" : "—",      fa.BenefitCostRatio > 1.0m);
-                            ViabilityMetricCell(t, "IRR",  fa.InternalRateOfReturn.HasValue ? $"{fa.InternalRateOfReturn * 100:N2}%" : "—", fa.InternalRateOfReturn * 100 > 15m);
-                            ViabilityMetricCell(t, "PI",   fa.ProfitabilityIndex.HasValue ? $"{fa.ProfitabilityIndex:N3}" : "—",   fa.ProfitabilityIndex > 1.0m);
-                        });
-                    }
-                }
-
-                // Monthly Cash Flow Summary
-                if (fa.ProjectedMonthlyRentalRevenue.HasValue || fa.MonthlyDisposableIncome.HasValue)
-                {
-                    col.Item().PaddingTop(2).PaddingBottom(2)
-                        .Background(Color.FromHex(AccentBlue)).Padding(4)
-                        .Text("Monthly Cash Flow Summary").Bold().FontSize(8).FontColor(Colors.White);
-
-                    col.Item().PaddingBottom(4).Table(t =>
-                    {
-                        t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
-                        InfoCell(t, "Gross Monthly Revenue",   fa.ProjectedMonthlyRentalRevenue.HasValue ? $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}" : "—");
-                        InfoCell(t, "Surplus After Repayment", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
-                        ViabilityMetricCell(t, "Cash Buffer",  fa.MonthlyDisposableIncome.HasValue ? (fa.MonthlyDisposableIncome > 0 ? "Positive" : "Negative") : "—", fa.MonthlyDisposableIncome > 0);
-                        ViabilityMetricCell(t, "DSR",          fa.DebtServiceCoverageRatio?.ToString("N2") + "×" ?? "—", fa.DebtServiceCoverageRatio >= 1.0m);
-                    });
-                }
-
-                // Credit Underwriting Determination
-                if (fa.DebtServiceCoverageRatio.HasValue)
-                {
-                    var dsr = fa.DebtServiceCoverageRatio.Value;
-                    string determination;
-                    Color determinationColor;
-                    if (dsr >= 1.5m)
-                    {
-                        determination = $"APPROVED — Healthy Viability. Net operating income covers the monthly amortisation by {dsr:N2}×. The beneficiary retains a significant liquidity cushion to absorb seasonal agricultural fluctuations, fully satisfying standard underwriting guidelines.";
-                        determinationColor = Colors.Green.Darken2;
-                    }
-                    else if (dsr >= 1.0m)
-                    {
-                        determination = $"BORDERLINE VIABILITY — Net operating income covers the monthly amortisation by {dsr:N2}×. Guarantor backing or cooperative cross-guarantee is required before final approval.";
-                        determinationColor = Colors.Orange.Darken2;
-                    }
-                    else
-                    {
-                        determination = $"DECLINED — Unviable. Projected utilisation does not generate sufficient net income to service the monthly amortisation (DSR {dsr:N2}×). The beneficiary must demonstrate a higher utilisation rate or provide additional equity before reassessment.";
-                        determinationColor = Colors.Red.Darken2;
-                    }
-
-                    col.Item().PaddingTop(2).PaddingBottom(2)
-                        .Background(Color.FromHex(AccentBlue)).Padding(4)
-                        .Text("Credit Underwriting Determination").Bold().FontSize(8).FontColor(Colors.White);
-
-                    col.Item().PaddingBottom(8).Row(r =>
-                    {
-                        r.ConstantItem(4).Background(determinationColor);
-                        r.RelativeItem().PaddingLeft(6).PaddingVertical(5)
-                            .Background(Color.FromHex(LightGray))
-                            .Text(determination).FontSize(8).LineHeight(1.5f);
-                    });
-                }
-                else
-                {
-                    col.Item().PaddingBottom(8);
-                }
+                ComposeFinancialAppraisal(col, data.FinancialAppraisal);
             }
 
             // ── AI Credit Advisory ───────────────────────────────────────────
@@ -825,6 +707,141 @@ public class NampLoanPackPdfGenerator : INampLoanPackGenerator
                 .FontSize(8).Italic().FontColor(Colors.Grey.Darken1);
         });
     }
+
+    /// <summary>
+    /// The financial appraisal as the pack has always printed it: the figures, the tractor loan
+    /// viability calculator, the monthly cash flow and the underwriting determination. Shared by the
+    /// loan pack and the stand-alone credit appraisal document, so the two always agree.
+    /// </summary>
+    internal static void ComposeFinancialAppraisal(ColumnDescriptor col, CRMS.Application.Namp.DTOs.NampFinancialAppraisalReportDto fa)
+    {
+        // Two pairs per row; a wide note takes a whole row, so the short pairs are padded to an
+        // even count first, or the notes land in the wrong cells.
+        col.Item().PaddingBottom(4).Table(t =>
+        {
+            t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+            var pairs = 7 + (fa.ProjectedMonthlyRentalRevenue.HasValue ? 1 : 0) + (fa.UtilisationRateAssumption.HasValue ? 1 : 0);
+            InfoCell(t, "Repayment Source",          FormatRepaymentSource(fa.RepaymentSource));
+            InfoCell(t, "Monthly Disposable Income", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
+            InfoCell(t, "DSCR",                      fa.DebtServiceCoverageRatio?.ToString("N2") ?? "—");
+            InfoCell(t, "LTV Ratio",                 fa.LoanToValueRatio.HasValue ? $"{fa.LoanToValueRatio:N1}%" : "—");
+            InfoCell(t, "Repayment Capacity",        fa.RepaymentCapacityRating);
+            InfoCell(t, "Credit Recommendation",     fa.CreditOfficerRecommendation);
+            InfoCell(t, "Prepared On",               fa.SavedAt.ToLocalTime().ToString("dd MMM yyyy"));
+            if (fa.ProjectedMonthlyRentalRevenue.HasValue)
+                InfoCell(t, "Projected Rental Rev.", $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}");
+            if (fa.UtilisationRateAssumption.HasValue)
+                InfoCell(t, "Utilisation Assumption", $"{fa.UtilisationRateAssumption:N1}%");
+            if (pairs % 2 == 1)
+                InfoCell(t, "", "");
+            if (!string.IsNullOrWhiteSpace(fa.DemandEvidenceNote))
+                InfoCellWide(t, "Demand Evidence", fa.DemandEvidenceNote);
+            if (!string.IsNullOrWhiteSpace(fa.EquityAssessmentNote))
+                InfoCellWide(t, "Equity Assessment", fa.EquityAssessmentNote);
+            if (!string.IsNullOrWhiteSpace(fa.CreditBureauSummary))
+                InfoCellWide(t, "Bureau Summary",    fa.CreditBureauSummary);
+            if (!string.IsNullOrWhiteSpace(fa.SummaryNotes))
+                InfoCellWide(t, "Summary Notes",     fa.SummaryNotes);
+        });
+
+        // Viability Calculator — only render if at least one input was captured
+        var hasViabilityInputs = fa.HectaresPerMonth.HasValue || fa.RatePerHectare.HasValue ||
+                                 fa.MonthlyFuelCost.HasValue  || fa.MonthlyMaintenanceCost.HasValue ||
+                                 fa.MonthlyOperatorWage.HasValue;
+        var hasViabilityMetrics = fa.NetPresentValue.HasValue || fa.BenefitCostRatio.HasValue ||
+                                  fa.InternalRateOfReturn.HasValue || fa.ProfitabilityIndex.HasValue;
+
+        if (hasViabilityInputs || hasViabilityMetrics)
+        {
+            col.Item().PaddingTop(2).PaddingBottom(2)
+                .Background(Color.FromHex(AccentBlue)).Padding(4)
+                .Text("Tractor Loan Viability Calculator").Bold().FontSize(8).FontColor(Colors.White);
+
+            if (hasViabilityInputs)
+            {
+                col.Item().PaddingBottom(4).Table(t =>
+                {
+                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                    InfoCell(t, "Hectares / Month",      fa.HectaresPerMonth.HasValue ? $"{fa.HectaresPerMonth:N1} ha" : "—");
+                    InfoCell(t, "Rate / Hectare",        fa.RatePerHectare.HasValue ? $"NGN {fa.RatePerHectare:N2}" : "—");
+                    InfoCell(t, "Monthly Fuel Cost",     fa.MonthlyFuelCost.HasValue ? $"NGN {fa.MonthlyFuelCost:N2}" : "—");
+                    InfoCell(t, "Maintenance Cost",      fa.MonthlyMaintenanceCost.HasValue ? $"NGN {fa.MonthlyMaintenanceCost:N2}" : "—");
+                    InfoCell(t, "Operator Wage",         fa.MonthlyOperatorWage.HasValue ? $"NGN {fa.MonthlyOperatorWage:N2}" : "—");
+                });
+            }
+
+            if (hasViabilityMetrics)
+            {
+                col.Item().PaddingBottom(4).Table(t =>
+                {
+                    t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                    ViabilityMetricCell(t, "NPV",  fa.NetPresentValue.HasValue   ? $"NGN {fa.NetPresentValue:N0}" : "—",   Test(fa.NetPresentValue, v => v > 0));
+                    ViabilityMetricCell(t, "BCR",  fa.BenefitCostRatio.HasValue  ? $"{fa.BenefitCostRatio:N3}" : "—",      Test(fa.BenefitCostRatio, v => v > 1.0m));
+                    ViabilityMetricCell(t, "IRR",  fa.InternalRateOfReturn.HasValue ? $"{fa.InternalRateOfReturn * 100:N2}%" : "—", Test(fa.InternalRateOfReturn, v => v * 100 > 15m));
+                    ViabilityMetricCell(t, "PI",   fa.ProfitabilityIndex.HasValue ? $"{fa.ProfitabilityIndex:N3}" : "—",   Test(fa.ProfitabilityIndex, v => v > 1.0m));
+                });
+            }
+        }
+
+        // Monthly Cash Flow Summary
+        if (fa.ProjectedMonthlyRentalRevenue.HasValue || fa.MonthlyDisposableIncome.HasValue)
+        {
+            col.Item().PaddingTop(2).PaddingBottom(2)
+                .Background(Color.FromHex(AccentBlue)).Padding(4)
+                .Text("Monthly Cash Flow Summary").Bold().FontSize(8).FontColor(Colors.White);
+
+            col.Item().PaddingBottom(4).Table(t =>
+            {
+                t.ColumnsDefinition(cd => { cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); cd.RelativeColumn(2); });
+                InfoCell(t, "Gross Monthly Revenue",   fa.ProjectedMonthlyRentalRevenue.HasValue ? $"NGN {fa.ProjectedMonthlyRentalRevenue:N2}" : "—");
+                InfoCell(t, "Surplus After Repayment", fa.MonthlyDisposableIncome.HasValue ? $"NGN {fa.MonthlyDisposableIncome:N2}" : "—");
+                ViabilityMetricCell(t, "Cash Buffer",  fa.MonthlyDisposableIncome.HasValue ? (fa.MonthlyDisposableIncome > 0 ? "Positive" : "Negative") : "—", Test(fa.MonthlyDisposableIncome, v => v > 0));
+                ViabilityMetricCell(t, "DSR",          fa.DebtServiceCoverageRatio is { } dsrValue ? $"{dsrValue:N2}×" : "—", Test(fa.DebtServiceCoverageRatio, v => v >= 1.0m));
+            });
+        }
+
+        // Credit Underwriting Determination
+        if (fa.DebtServiceCoverageRatio.HasValue)
+        {
+            var dsr = fa.DebtServiceCoverageRatio.Value;
+            string determination;
+            Color determinationColor;
+            if (dsr >= 1.5m)
+            {
+                determination = $"APPROVED — Healthy Viability. Net operating income covers the monthly amortisation by {dsr:N2}×. The beneficiary retains a significant liquidity cushion to absorb seasonal agricultural fluctuations, fully satisfying standard underwriting guidelines.";
+                determinationColor = Colors.Green.Darken2;
+            }
+            else if (dsr >= 1.0m)
+            {
+                determination = $"BORDERLINE VIABILITY — Net operating income covers the monthly amortisation by {dsr:N2}×. Guarantor backing or cooperative cross-guarantee is required before final approval.";
+                determinationColor = Colors.Orange.Darken2;
+            }
+            else
+            {
+                determination = $"DECLINED — Unviable. Projected utilisation does not generate sufficient net income to service the monthly amortisation (DSR {dsr:N2}×). The beneficiary must demonstrate a higher utilisation rate or provide additional equity before reassessment.";
+                determinationColor = Colors.Red.Darken2;
+            }
+
+            col.Item().PaddingTop(2).PaddingBottom(2)
+                .Background(Color.FromHex(AccentBlue)).Padding(4)
+                .Text("Credit Underwriting Determination").Bold().FontSize(8).FontColor(Colors.White);
+
+            col.Item().PaddingBottom(8).Row(r =>
+            {
+                r.ConstantItem(4).Background(determinationColor);
+                r.RelativeItem().PaddingLeft(6).PaddingVertical(5)
+                    .Background(Color.FromHex(LightGray))
+                    .Text(determination).FontSize(8).LineHeight(1.5f);
+            });
+        }
+        else
+        {
+            col.Item().PaddingBottom(8);
+        }
+    }
+
+    /// <summary>Pass or fail for a figure, or no verdict when there is no figure to judge.</summary>
+    private static bool? Test(decimal? value, Func<decimal, bool> pass) => value is { } v ? pass(v) : null;
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

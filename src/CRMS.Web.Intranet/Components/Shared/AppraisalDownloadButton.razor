@@ -1,0 +1,57 @@
+@inject IJSRuntime JS
+
+@* The small "Download PDF" button on each track's credit appraisal. The page says how to build the
+   file; this handles the spinner, the browser download and any error. *@
+
+<span style="display: inline-flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+    @if (!string.IsNullOrEmpty(UnavailableReason))
+    {
+        <span style="font-size: 0.75rem; color: var(--gray-500);">@UnavailableReason</span>
+    }
+    else if (!string.IsNullOrEmpty(error))
+    {
+        <span style="font-size: 0.75rem; color: var(--danger-600);">@error</span>
+    }
+    <button type="button" class="btn btn-outline btn-sm" @onclick="Download" disabled="@(busy || !string.IsNullOrEmpty(UnavailableReason))"
+            title="@(UnavailableReason ?? "Download this credit appraisal as a PDF")">
+        @if (busy)
+        {
+            <span class="spinner" style="width: 14px; height: 14px;"></span>
+        }
+        else
+        {
+            <span class="material-symbols-outlined" style="font-size: 16px; vertical-align: middle;">picture_as_pdf</span>
+        }
+        Download PDF
+    </button>
+</span>
+
+@code {
+    /// <summary>Builds the PDF. Called on each click, so the file reflects the appraisal as saved now.</summary>
+    [Parameter, EditorRequired] public Func<Task<ApiResponse<DownloadFile>>> Generate { get; set; } = default!;
+
+    /// <summary>Why there is nothing to download yet. When set, the button stays visible but disabled and says why,
+    /// so it is never mistaken for missing.</summary>
+    [Parameter] public string? UnavailableReason { get; set; }
+
+    private bool busy;
+    private string? error;
+
+    private async Task Download()
+    {
+        busy = true;
+        error = null;
+        try
+        {
+            var result = await Generate();
+            if (result.Success && result.Data is { } file)
+                await JS.InvokeVoidAsync("downloadFileFromBytes", file.FileName, "application/pdf", file.Content);
+            else
+                error = result.Error ?? "The PDF could not be generated.";
+        }
+        finally
+        {
+            busy = false;
+        }
+    }
+}

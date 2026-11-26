@@ -209,10 +209,21 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
 
     private static void ComposeAppraisal(ColumnDescriptor col, RhshfLoanPackData data, string ccy)
     {
-        var fa = data.FinancialAppraisal;
         Section(col, "Financial Appraisal (Crop Economics)");
+        ComposeFinancialAppraisal(col, data.FinancialAppraisal, ccy);
+    }
+
+    /// <summary>
+    /// The financial appraisal as the tab shows it: farm plan, the figures, each viability test with
+    /// the mark it had to meet, the season cashflow, break-even sensitivities, and the officer's
+    /// notes. Shared by the loan pack and the stand-alone credit appraisal document, so the two
+    /// always print the same thing.
+    /// </summary>
+    internal static void ComposeFinancialAppraisal(ColumnDescriptor col, RhshfFinancialAppraisalDto? fa, string ccy)
+    {
         if (fa is null || fa.Report is null) { Empty(col, "No financial appraisal has been saved for this cycle."); return; }
         var r = fa.Report;
+        var t = fa.Thresholds;
 
         if (fa.FarmPlans.Count > 0)
         {
@@ -240,26 +251,59 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
             ("Amount due at harvest", $"{ccy} {r.AmountDueAtHarvest:N2}"),
             ("Gross margin", $"{ccy} {r.GrossMargin:N2} ({r.GrossMarginPercent:0.##}%)"),
             ("DSCR", r.Dscr.ToString("0.##")),
-            ("IRR", r.Irr is { } irr ? $"{irr:0.##}%" : "—"),
+            // IRR is stored as a fraction (0.18 is 18%).
+            ("IRR", r.Irr is { } irr ? $"{irr * 100:0.##}%" : "—"),
             ("NPV", $"{ccy} {r.NetPresentValue:N2}"),
             ("Net return to farmer", $"{ccy} {r.NetReturnToFarmer:N2}"),
             ("Repayment capacity", r.RepaymentCapacityRating.ToString())));
 
-        // Viability gates
+        // Viability tests, each with the mark it had to meet.
         col.Item().PaddingTop(6).Table(table =>
         {
-            table.ColumnsDefinition(c => { c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); c.RelativeColumn(); });
-            Th(table, "DSCR", true); Th(table, "Gross margin", true); Th(table, "IRR", true); Th(table, "Yield buffer", true); Th(table, "Price buffer", true);
-            Gate(table, r.DscrPass); Gate(table, r.GrossMarginPass); Gate(table, r.IrrPass); Gate(table, r.YieldHeadroomPass); Gate(table, r.PriceHeadroomPass);
+            table.ColumnsDefinition(c => { c.RelativeColumn(2.2f); c.RelativeColumn(1.6f); c.RelativeColumn(1.6f); c.RelativeColumn(1); });
+            Th(table, "Test", true); Th(table, "Result"); Th(table, "Must meet"); Th(table, "Outcome");
+            TestRow(table, "Debt service cover (DSCR)", r.Dscr.ToString("0.##"), $"≥ {t.MinDscr:0.##}", r.DscrPass);
+            TestRow(table, "Gross margin", $"{r.GrossMarginPercent:0.##}%", $"≥ {t.MinGrossMarginPercent:0.##}%", r.GrossMarginPass);
+            TestRow(table, "Internal rate of return", r.Irr is { } i ? $"{i * 100:0.##}%" : "—", $"≥ {t.HurdleRatePercent:0.##}%", r.IrrPass);
+            TestRow(table, "Yield headroom", r.YieldHeadroomPercent is { } y ? $"{y:0.##}%" : "—", $"≥ {t.MinYieldHeadroomPercent:0.##}%", r.YieldHeadroomPass);
+            TestRow(table, "Price headroom", r.PriceHeadroomPercent is { } p ? $"{p:0.##}%" : "—", $"≥ {t.MinPriceHeadroomPercent:0.##}%", r.PriceHeadroomPass);
         });
-        col.Item().PaddingTop(4).Text($"Gates passed: {r.GatesPassed}/5 — {(r.AllGatesPass ? "ALL PASS" : "NOT ALL PASS")}")
+        col.Item().PaddingTop(4).Text($"Tests passed: {r.GatesPassed}/5 — {(r.AllGatesPass ? "ALL PASS" : "NOT ALL PASS")}")
             .SemiBold().FontColor(Color.FromHex(r.AllGatesPass ? BoaBrand.Accent : "#b45309"));
-        col.Item().PaddingTop(4).Text($"Credit Officer recommendation: {r.CreditOfficerRecommendation}").SemiBold();
+
+        // Season cashflow and break-even, as on the tab.
+        col.Item().PaddingTop(6).Text("Season cashflow").SemiBold().FontSize(9);
+        col.Item().Element(c => KeyValues(c,
+            ("Gross revenue", $"{ccy} {r.GrossRevenue:N2}"),
+            ("Own production cost", $"{ccy} {r.OwnProductionCost:N2}"),
+            ("Harvest & logistics", $"{ccy} {r.HarvestAndLogisticsCost:N2}"),
+            ("Own cash costs", $"{ccy} {r.OwnCashCosts:N2}"),
+            ("Total cost", $"{ccy} {r.TotalCost:N2}"),
+            ("Cash available for debt service", $"{ccy} {r.CashAvailableForDebtService:N2}")));
+        col.Item().PaddingTop(6).Text("Break-even sensitivities").SemiBold().FontSize(9);
+        col.Item().Element(c => KeyValues(c,
+            ("Hectares", $"{r.TotalHectares:N1} ha"),
+            ("Blended yield", $"{r.BlendedYieldKgPerHectare:N0} kg/ha"),
+            ("Break-even yield", r.BreakEvenYieldKgPerHectare is { } by ? $"{by:N0} kg/ha" : "—"),
+            ("Blended price", $"{ccy} {r.BlendedPricePerKg:N2} /kg"),
+            ("Break-even price", r.BreakEvenPricePerKg is { } bp ? $"{ccy} {bp:N2} /kg" : "—")));
+
+        col.Item().PaddingTop(6).Text($"Credit Officer recommendation: {r.CreditOfficerRecommendation}").SemiBold();
         if (!string.IsNullOrWhiteSpace(r.SummaryNotes))
-            col.Item().PaddingTop(3).Text(r.SummaryNotes).FontSize(8).FontColor(Colors.Grey.Darken2);
+            Para(col, "Risk commentary", r.SummaryNotes);
+        if (!string.IsNullOrWhiteSpace(r.AssumptionBasisNote))
+            Para(col, "Basis of the cost assumptions", r.AssumptionBasisNote);
         if (!string.IsNullOrWhiteSpace(r.OverrideJustification))
-            col.Item().PaddingTop(3).Text($"Override justification: {r.OverrideJustification}").FontSize(8).Italic().FontColor(Colors.Grey.Darken2);
+            Para(col, "Override justification", r.OverrideJustification);
         col.Item().PaddingTop(3).Text($"Prepared by {r.PreparedByName} on {r.SavedAt.ToLocalTime():dd MMM yyyy HH:mm}").FontSize(8).FontColor(Colors.Grey.Darken1);
+    }
+
+    private static void TestRow(TableDescriptor table, string test, string result, string mark, bool pass)
+    {
+        Td(table, test, true);
+        Td(table, result);
+        Td(table, mark);
+        Gate(table, pass);
     }
 
     private static void ComposeGuarantors(ColumnDescriptor col, RhshfLoanPackData data, string ccy)
@@ -451,8 +495,12 @@ public class RhshfLoanPackPdfGenerator : IRhshfLoanPackGenerator
 
     private static void Para(ColumnDescriptor col, string label, string body)
     {
-        col.Item().PaddingTop(4).Text(label).SemiBold().FontSize(9);
-        col.Item().Text(body).FontSize(8).FontColor(Colors.Grey.Darken2);
+        // Kept together where it fits, so a heading never ends a page without its text.
+        col.Item().EnsureSpace(40).Column(c =>
+        {
+            c.Item().PaddingTop(4).Text(label).SemiBold().FontSize(9);
+            c.Item().Text(body).FontSize(8).FontColor(Colors.Grey.Darken2);
+        });
     }
 
     /// <summary>Two-column key/value grid, two pairs per row.</summary>

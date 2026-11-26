@@ -302,6 +302,7 @@ public static class DependencyInjection
         // LoanPack
         services.AddScoped<ILoanPackRepository, LoanPackRepository>();
         services.AddScoped<Application.LoanPack.Interfaces.ILoanPackGenerator, Documents.LoanPackPdfGenerator>();
+        services.AddScoped<Application.CreditAppraisal.ICreditAppraisalPdfGenerator, Documents.CreditAppraisalPdfGenerator>();
 
         // OfferLetter
         services.AddScoped<IOfferLetterRepository, OfferLetterRepository>();

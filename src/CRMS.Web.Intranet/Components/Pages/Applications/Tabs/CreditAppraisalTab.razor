@@ -2,6 +2,11 @@
 @inject ApplicationService AppService
 @inject IJSRuntime JS
 
+<div style="display: flex; justify-content: flex-end; margin-bottom: 0.75rem;">
+    <AppraisalDownloadButton Generate="() => AppService.DownloadCorporateCreditAppraisalAsync(ApplicationId)"
+        UnavailableReason="@(Appraisal?.SavedAt is null ? "Save an appraisal to download it" : null)" />
+</div>
+
 @if (CanEdit)
 {
     <!-- Editable form -->
@@ -340,6 +345,7 @@ else
 }
 
 @code {
+    [Parameter] public Guid ApplicationId { get; set; }
     [Parameter] public CreditAppraisalInfo? Appraisal { get; set; }
     [Parameter] public bool CanEdit { get; set; }
     [Parameter] public bool IsSaving { get; set; }
