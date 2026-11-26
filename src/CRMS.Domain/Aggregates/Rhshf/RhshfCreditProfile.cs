@@ -444,6 +444,12 @@ public class RhshfCreditProfile : AggregateRoot
         if (CurrentStage != RhshfProfilingStage.SupportingDocuments)
             return Result.Failure<RhshfSupportingDocument>("Case is not on the supporting documents stage.");
 
+        // A CV or means of ID belongs to one person on this case, and a copy carried over without that
+        // person would not count as personal, putting it outside the personal-documents access rule.
+        if (RhshfDocumentRequirement.AppliesToFor(category) != RhshfRequirementAppliesTo.Case)
+            return Result.Failure<RhshfSupportingDocument>(
+                "CVs and means of ID can't be carried over from an earlier case. Upload them for each person instead.");
+
         // One carried-over copy per category is the whole point — a second adds nothing and would
         // leave the FAC unable to tell the duplicates apart.
         if (_supportingDocuments.Any(d => d.Category == category))

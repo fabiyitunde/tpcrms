@@ -332,4 +332,36 @@ public class RhshfProfilingReadinessTests
 
         Assert.True(result.IsSuccess, result.IsFailure ? result.Error : null);
     }
+
+    // ── Carrying a document over from an earlier case ──────────────────────
+
+    [Theory]
+    [InlineData(RhshfDocumentCategory.DirectorCv)]
+    [InlineData(RhshfDocumentCategory.DirectorMeansOfId)]
+    [InlineData(RhshfDocumentCategory.ManagementCv)]
+    [InlineData(RhshfDocumentCategory.ChiefPromoterCv)]
+    public void AddReusedSupportingDocument_PersonalCategory_Fails(RhshfDocumentCategory category)
+    {
+        var profile = CreateProfile();
+        WalkToDocuments(profile);
+
+        var result = profile.AddReusedSupportingDocument(category, "cv.pdf", "application/pdf", "path", 2048,
+            Guid.NewGuid(), "RHSHF-2026-000001", DateTime.UtcNow.AddDays(-30));
+
+        Assert.True(result.IsFailure);
+        Assert.Contains("carried over", result.Error);
+        Assert.Empty(profile.SupportingDocuments);
+    }
+
+    [Fact]
+    public void AddReusedSupportingDocument_CaseCategory_Succeeds()
+    {
+        var profile = CreateProfile();
+        WalkToDocuments(profile);
+
+        var result = profile.AddReusedSupportingDocument(RhshfDocumentCategory.CompanyProfile, "profile.pdf",
+            "application/pdf", "path", 2048, Guid.NewGuid(), "RHSHF-2026-000001", DateTime.UtcNow.AddDays(-30));
+
+        Assert.True(result.IsSuccess, result.IsFailure ? result.Error : null);
+    }
 }
