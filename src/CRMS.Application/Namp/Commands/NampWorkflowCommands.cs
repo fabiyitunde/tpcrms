@@ -1175,12 +1175,14 @@ public class ConfirmNampDeploymentHandler
 
     public ConfirmNampDeploymentHandler(
         INampApplicationRepository repo,
+        INampStageAuthorizer auth,
         ILoanProductRepository productRepo,
         IFineractDirectService fineractService,
         IUnitOfWork uow,
         ILogger<ConfirmNampDeploymentHandler> logger)
     {
         _repo           = repo;
+        _auth           = auth;
         _productRepo    = productRepo;
         _fineractService = fineractService;
         _uow            = uow;
@@ -1303,12 +1305,14 @@ public class RetryNampFineractBookingHandler
 
     public RetryNampFineractBookingHandler(
         INampApplicationRepository repo,
+        INampStageAuthorizer auth,
         ILoanProductRepository productRepo,
         IFineractDirectService fineractService,
         IUnitOfWork uow,
         ILogger<RetryNampFineractBookingHandler> logger)
     {
         _repo            = repo;
+        _auth            = auth;
         _productRepo     = productRepo;
         _fineractService = fineractService;
         _uow             = uow;
